@@ -5,7 +5,18 @@ import { AlertCircle, Crosshair, FileCheck2, Info, RefreshCw, Upload, X } from "
 import { useForm, useWatch } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
-import { useGetEyetrackersQuery, useSelectEyetrackerMutation } from "@/redux"
+import {
+  setStepOneLastSyncedFingerprint,
+  setStepOneLicenceFileName,
+  setStepOneOverwriteExistingLicence,
+  setStepOneSaveLicence,
+  setStepOneSerialNumber,
+  useAppDispatch,
+  useAppSelector,
+  useGetEyetrackersQuery,
+  useSelectEyetrackerMutation,
+} from "@/redux"
+import type { RootState } from "@/redux"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,14 +63,16 @@ export function EyetrackerSetup({
   onSubmitRequestChange,
   onSubmittingChange,
 }: EyetrackerSetupProps) {
+  const dispatch = useAppDispatch()
+  const stepOneDraft = useAppSelector((state: RootState) => state.experiment.stepOne)
   const { data: eyetrackers = [], isLoading, isError, refetch } = useGetEyetrackersQuery()
   const [selectEyetracker, { isLoading: isSelecting }] = useSelectEyetrackerMutation()
 
   const form = useForm<EyetrackerSetupFormValues>({
     defaultValues: {
-      serialNumber: "",
-      overwriteExistingLicence: false,
-      saveLicence: false,
+      serialNumber: stepOneDraft.serialNumber,
+      overwriteExistingLicence: stepOneDraft.overwriteExistingLicence,
+      saveLicence: stepOneDraft.saveLicence,
       licenceFile: null,
     },
   })
@@ -100,9 +113,10 @@ export function EyetrackerSetup({
   )
   const hasSavedLicence = Boolean(selectedEyetracker?.hasSavedLicence)
   const canUploadNewLicense = !hasSavedLicence || overwriteExistingLicence
+  const displayedLicenceFileName = licenceFile?.name ?? stepOneDraft.licenceFileName
   const isComplete = Boolean(
     selectedSerialNumber &&
-      (licenceFile || (hasSavedLicence && !overwriteExistingLicence))
+      (displayedLicenceFileName || (hasSavedLicence && !overwriteExistingLicence))
   )
 
   React.useEffect(() => {
@@ -138,6 +152,7 @@ export function EyetrackerSetup({
 
   const handleRemoveLicense = () => {
     form.setValue("licenceFile", null, { shouldDirty: true, shouldValidate: true })
+    dispatch(setStepOneLicenceFileName(null))
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -145,13 +160,37 @@ export function EyetrackerSetup({
     setSubmitError(null)
   }
 
+  React.useEffect(() => {
+    dispatch(setStepOneSerialNumber(selectedSerialNumber ?? ""))
+  }, [dispatch, selectedSerialNumber])
+
+  React.useEffect(() => {
+    dispatch(setStepOneOverwriteExistingLicence(Boolean(overwriteExistingLicence)))
+  }, [dispatch, overwriteExistingLicence])
+
+  React.useEffect(() => {
+    dispatch(setStepOneSaveLicence(Boolean(saveLicence)))
+  }, [dispatch, saveLicence])
+
   const submitSelection = React.useCallback(async () => {
     setSubmitError(null)
     const currentValues = form.getValues()
+    const effectiveLicenceFileName =
+      currentValues.licenceFile?.name ?? stepOneDraft.licenceFileName ?? null
+    const currentFingerprint = JSON.stringify({
+      serialNumber: currentValues.serialNumber,
+      overwriteExistingLicence: currentValues.overwriteExistingLicence,
+      saveLicence: currentValues.saveLicence,
+      licenceFileName: effectiveLicenceFileName,
+    })
 
     if (!currentValues.serialNumber) {
       form.setError("serialNumber", { message: "Please select an eyetracker." })
       return false
+    }
+
+    if (stepOneDraft.lastSyncedFingerprint === currentFingerprint) {
+      return true
     }
 
     if (!currentValues.licenceFile) {
@@ -161,27 +200,19 @@ export function EyetrackerSetup({
       }
     }
 
-    const shouldSkipApiCall =
-      hasSavedLicence &&
-      !currentValues.overwriteExistingLicence &&
-      !currentValues.licenceFile
-
-    if (shouldSkipApiCall) {
-      return true
-    }
-
     try {
       await selectEyetracker({
         serialNumber: currentValues.serialNumber,
         saveLicence: currentValues.saveLicence,
         licenceFile: currentValues.licenceFile,
       }).unwrap()
+      dispatch(setStepOneLastSyncedFingerprint(currentFingerprint))
       return true
     } catch (error) {
       setSubmitError(getApiErrorMessage(error))
       return false
     }
-  }, [form, hasSavedLicence, selectEyetracker])
+  }, [dispatch, form, hasSavedLicence, selectEyetracker, stepOneDraft.lastSyncedFingerprint, stepOneDraft.licenceFileName])
 
   React.useEffect(() => {
     onSubmitRequestChange?.(submitSelection)
@@ -246,6 +277,7 @@ export function EyetrackerSetup({
                             shouldDirty: true,
                             shouldValidate: true,
                           })
+                          dispatch(setStepOneLicenceFileName(null))
                           form.setValue("saveLicence", false, {
                             shouldDirty: true,
                             shouldValidate: false,
@@ -375,15 +407,15 @@ export function EyetrackerSetup({
                       <FormControl>
                         <div
                           role="button"
-                          tabIndex={licenceFile || !canUploadNewLicense ? -1 : 0}
-                          aria-disabled={Boolean(licenceFile || !canUploadNewLicense)}
+                          tabIndex={displayedLicenceFileName || !canUploadNewLicense ? -1 : 0}
+                          aria-disabled={Boolean(displayedLicenceFileName || !canUploadNewLicense)}
                           onClick={() => {
-                            if (!licenceFile && canUploadNewLicense) {
+                            if (!displayedLicenceFileName && canUploadNewLicense) {
                               fileInputRef.current?.click()
                             }
                           }}
                           onKeyDown={(event) => {
-                            if (licenceFile || !canUploadNewLicense) {
+                            if (displayedLicenceFileName || !canUploadNewLicense) {
                               return
                             }
                             if (event.key === "Enter" || event.key === " ") {
@@ -392,21 +424,21 @@ export function EyetrackerSetup({
                             }
                           }}
                           onDragOver={(event) => {
-                            if (licenceFile || !canUploadNewLicense) {
+                            if (displayedLicenceFileName || !canUploadNewLicense) {
                               return
                             }
                             event.preventDefault()
                             setDragActive(true)
                           }}
                           onDragLeave={(event) => {
-                            if (licenceFile || !canUploadNewLicense) {
+                            if (displayedLicenceFileName || !canUploadNewLicense) {
                               return
                             }
                             event.preventDefault()
                             setDragActive(false)
                           }}
                           onDrop={(event) => {
-                            if (licenceFile || !canUploadNewLicense) {
+                            if (displayedLicenceFileName || !canUploadNewLicense) {
                               return
                             }
                             event.preventDefault()
@@ -417,13 +449,14 @@ export function EyetrackerSetup({
                               shouldDirty: true,
                               shouldValidate: true,
                             })
+                            dispatch(setStepOneLicenceFileName(nextFile?.name ?? null))
                           }}
                           className={cn(
                             "group flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-8 text-center transition-colors",
                             dragActive
                               ? "border-primary bg-primary/5"
                               : "border-muted-foreground/35 hover:border-primary/70 hover:bg-muted/20",
-                            licenceFile &&
+                            displayedLicenceFileName &&
                               "cursor-not-allowed opacity-70 hover:border-muted-foreground/35 hover:bg-transparent",
                             !canUploadNewLicense &&
                               "cursor-not-allowed border-amber-400/60 bg-amber-50/30 opacity-80 hover:border-amber-400/60 hover:bg-amber-50/30 dark:border-amber-700 dark:bg-amber-950/20"
@@ -431,14 +464,14 @@ export function EyetrackerSetup({
                         >
                           <Upload className="mb-3 h-7 w-7 text-muted-foreground transition-colors group-hover:text-primary" />
                           <p className="text-sm font-medium text-foreground">
-                            {licenceFile
+                            {displayedLicenceFileName
                               ? "License file uploaded"
                               : !canUploadNewLicense
                                 ? "Upload is locked"
                                 : "Drag and drop your license file"}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {licenceFile
+                            {displayedLicenceFileName
                               ? "Only one file is allowed. Remove it to upload another."
                               : !canUploadNewLicense
                                 ? "Enable overwrite above to upload a replacement license."
@@ -451,7 +484,7 @@ export function EyetrackerSetup({
                             ref={fileInputRef}
                             type="file"
                             className="hidden"
-                            disabled={Boolean(licenceFile || !canUploadNewLicense)}
+                            disabled={Boolean(displayedLicenceFileName || !canUploadNewLicense)}
                             onChange={(event) => {
                               const nextFile = event.target.files?.[0] ?? null
                               setSubmitError(null)
@@ -459,6 +492,7 @@ export function EyetrackerSetup({
                                 shouldDirty: true,
                                 shouldValidate: true,
                               })
+                              dispatch(setStepOneLicenceFileName(nextFile?.name ?? null))
                             }}
                           />
                         </div>
@@ -468,12 +502,12 @@ export function EyetrackerSetup({
                   )}
                 />
 
-                {licenceFile ? (
+                {displayedLicenceFileName ? (
                   <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
                     <div className="flex min-w-0 items-center gap-2">
                       <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
                       <Badge variant="secondary">Uploaded</Badge>
-                      <span className="truncate font-medium">{licenceFile.name}</span>
+                      <span className="truncate font-medium">{displayedLicenceFileName}</span>
                     </div>
                     <Button
                       type="button"
@@ -490,9 +524,9 @@ export function EyetrackerSetup({
 
                 <div className="rounded-md border bg-muted/20 p-3">
                   <div className="flex items-start gap-2">
-                    <Checkbox
-                      id="save-license-for-later"
-                      checked={saveLicence}
+                      <Checkbox
+                        id="save-license-for-later"
+                        checked={saveLicence}
                       onCheckedChange={(checked) => {
                         setSubmitError(null)
                         form.setValue("saveLicence", Boolean(checked), {
@@ -500,7 +534,7 @@ export function EyetrackerSetup({
                           shouldValidate: false,
                         })
                       }}
-                      disabled={!licenceFile}
+                      disabled={!displayedLicenceFileName}
                       className="mt-0.5"
                     />
                     <div className="space-y-1">
