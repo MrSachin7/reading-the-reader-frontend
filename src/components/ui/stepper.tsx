@@ -24,7 +24,7 @@ function Stepper({
   onChange,
   className,
   ...props
-}: React.ComponentProps<"div"> & {
+}: Omit<React.ComponentProps<"div">, "onChange"> & {
   value: number
   onChange?: (value: number) => void
 }) {
