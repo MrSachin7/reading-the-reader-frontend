@@ -92,13 +92,51 @@ const steps: ExperimentStep[] = [
 
 export function ExperimentStepper() {
   const [step, setStep] = React.useState(0)
+  const [isStepSubmitting, setIsStepSubmitting] = React.useState(false)
+  const [stepCompletion, setStepCompletion] = React.useState<Record<number, boolean>>({
+    0: false,
+    1: false,
+    2: false,
+  })
+  const stepSubmitHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null)
+
+  const isCurrentStepComplete = stepCompletion[step] ?? false
+  const canAdvance = isCurrentStepComplete && !isStepSubmitting
+
+  const handleNext = async () => {
+    if (step === steps.length - 1 || !canAdvance) {
+      return
+    }
+
+    if (step === 0) {
+      const submitStep = stepSubmitHandlerRef.current
+      if (!submitStep) {
+        return
+      }
+
+      const success = await submitStep()
+      if (!success) {
+        return
+      }
+    }
+
+    setStep((prev) => Math.min(prev + 1, steps.length - 1))
+  }
 
   return (
     <div className="w-full space-y-8">
       <ExperimentStepNavigation step={step} onStepChange={setStep} steps={steps} />
 
       {step === 0 ? (
-        <EyetrackerSetup />
+        <EyetrackerSetup
+          onCompletionChange={(isComplete) =>
+            setStepCompletion((prev) => ({ ...prev, 0: isComplete }))
+          }
+          onSubmittingChange={setIsStepSubmitting}
+          onSubmitRequestChange={(submitHandler) => {
+            stepSubmitHandlerRef.current = submitHandler
+          }}
+        />
       ) : (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
@@ -111,7 +149,10 @@ export function ExperimentStepper() {
         <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
           Previous
         </Button>
-        <Button disabled={step === steps.length - 1} onClick={() => setStep(step + 1)}>
+        <Button
+          disabled={step === steps.length - 1 || !canAdvance}
+          onClick={handleNext}
+        >
           Next
         </Button>
       </div>
