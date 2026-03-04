@@ -107,7 +107,7 @@ function startPingLoop() {
   pingTimer = window.setInterval(() => {
     lastPingSentAt = Date.now();
     send({ type: "ping", payload: {} });
-  }, 25_000);
+  }, 5_000);
 }
 
 function stopPingLoop() {
