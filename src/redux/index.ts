@@ -4,3 +4,11 @@ export { useAppDispatch, useAppSelector, useAppStore } from "./hooks"
 export { ReduxProvider } from "./redux-provider"
 export { makeStore } from "./store"
 export type { AppDispatch, AppStore, RootState } from "./store"
+export {
+  resetStepOneState,
+  setStepOneLastSyncedFingerprint,
+  setStepOneLicenceFileName,
+  setStepOneOverwriteExistingLicence,
+  setStepOneSaveLicence,
+  setStepOneSerialNumber,
+} from "./slices/experiment-slice"

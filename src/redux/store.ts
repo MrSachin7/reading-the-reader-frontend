@@ -2,10 +2,12 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit"
 import { setupListeners } from "@reduxjs/toolkit/query"
 
 import { baseApi } from "@/redux/api/base-api"
+import experimentReducer from "@/redux/slices/experiment-slice"
 import appReducer from "@/redux/slices/app-slice"
 
 const rootReducer = combineReducers({
   app: appReducer,
+  experiment: experimentReducer,
   [baseApi.reducerPath]: baseApi.reducer,
 })
 
