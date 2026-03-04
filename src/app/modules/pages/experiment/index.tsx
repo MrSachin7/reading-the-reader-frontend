@@ -6,6 +6,7 @@ export default function ExperimentPage() {
       <section className="w-full rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
         <h1 className="mb-6 text-xl font-semibold">New Experiment</h1>
         <ExperimentStepper />
+        
       </section>
     </main>
   );
