@@ -4,15 +4,20 @@ export type Eyetracker = {
   name: string
   model: string
   serialNumber: string
+  hasSavedLicence: boolean
+}
+
+export type SelectEyetrackerPayload = {
+  serialNumber: string
+  saveLicence: boolean
+  licenceFile?: File | null
 }
 
 type EyeTrackerApiResponse = {
   name?: string
   model?: string
   serialNumber?: string
-  Name?: string
-  Model?: string
-  SerialNumber?: string
+  hasSavedLicence?: boolean
 }
 
 export const eyetrackerApi = baseApi.injectEndpoints({
@@ -21,13 +26,30 @@ export const eyetrackerApi = baseApi.injectEndpoints({
       query: () => "/eyetrackers",
       transformResponse: (response: EyeTrackerApiResponse[]) =>
         response.map((item) => ({
-          name: item.name ?? item.Name ?? "",
-          model: item.model ?? item.Model ?? "",
-          serialNumber: item.serialNumber ?? item.SerialNumber ?? "",
+          name: item.name ?? "",
+          model: item.model ?? "",
+          serialNumber: item.serialNumber ?? "",
+          hasSavedLicence: Boolean(item.hasSavedLicence),
         })),
       providesTags: ["Eyetracker"],
+    }),
+    selectEyetracker: builder.mutation<void, SelectEyetrackerPayload>({
+      query: ({ serialNumber, saveLicence, licenceFile }) => {
+        const formData = new FormData()
+        formData.append("SerialNumber", serialNumber)
+        formData.append("SaveLicence", String(saveLicence))
+        if (licenceFile) {
+          formData.append("LicenceFile", licenceFile)
+        }
+
+        return {
+          url: "/eyetrackers/select",
+          method: "POST",
+          body: formData,
+        }
+      },
     }),
   }),
 })
 
-export const { useGetEyetrackersQuery } = eyetrackerApi
+export const { useGetEyetrackersQuery, useSelectEyetrackerMutation } = eyetrackerApi

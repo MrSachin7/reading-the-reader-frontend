@@ -1,5 +1,5 @@
-export { baseApi, eyetrackerApi, useGetEyetrackersQuery } from "./api"
-export type { Eyetracker } from "./api"
+export { baseApi, eyetrackerApi, useGetEyetrackersQuery, useSelectEyetrackerMutation } from "./api"
+export type { Eyetracker, SelectEyetrackerPayload } from "./api"
 export { useAppDispatch, useAppSelector, useAppStore } from "./hooks"
 export { ReduxProvider } from "./redux-provider"
 export { makeStore } from "./store"

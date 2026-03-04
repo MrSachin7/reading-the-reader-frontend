@@ -1,3 +1,3 @@
 export { baseApi } from "./base-api"
-export { eyetrackerApi, useGetEyetrackersQuery } from "./eyetracker-api"
-export type { Eyetracker } from "./eyetracker-api"
+export { eyetrackerApi, useGetEyetrackersQuery, useSelectEyetrackerMutation } from "./eyetracker-api"
+export type { Eyetracker, SelectEyetrackerPayload } from "./eyetracker-api"
