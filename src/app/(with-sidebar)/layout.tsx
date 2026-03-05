@@ -4,12 +4,10 @@ import { BookOpen, Layers, ScanEye } from "lucide-react";
 import { FontSelector } from "@/components/theme/font-selector";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { PaletteToggle } from "@/components/theme/palette-toggle";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -68,16 +66,18 @@ export default function WithSidebarLayout({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Reading">
+                    <Link href="/reading">
+                      <BookOpen />
+                      <span>Reading</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-
-        <SidebarFooter>
-          <Badge variant="secondary" className="text-xs">
-            Sidebar Layout
-          </Badge>
-        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
 
