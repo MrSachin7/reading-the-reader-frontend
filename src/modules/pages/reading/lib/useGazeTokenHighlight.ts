@@ -13,6 +13,7 @@ import {
 
 type UseGazeTokenHighlightParams = {
   containerRef: RefObject<HTMLElement | null>;
+  highlightTokensBeingLookedAt?: boolean;
 };
 
 type WordLayout = {
@@ -208,7 +209,10 @@ function applyStyles(element: HTMLElement, variant: HighlightVariant) {
   }
 }
 
-export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightParams) {
+export function useGazeTokenHighlight({
+  containerRef,
+  highlightTokensBeingLookedAt = true,
+}: UseGazeTokenHighlightParams) {
   const { useLocalCalibration, lastOffsetX, lastOffsetY } = useAppSelector(
     (state) => state.experiment.stepThree
   );
@@ -261,7 +265,10 @@ export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightPar
 
       for (const [element, variant] of nextHighlights) {
         const previousVariant = highlightedElementsRef.current.get(element);
-        if (!previousVariant || previousVariant !== variant) {
+        if (
+          highlightTokensBeingLookedAt &&
+          (!previousVariant || previousVariant !== variant)
+        ) {
           clearStyles(element);
           applyStyles(element, variant);
         }
@@ -430,5 +437,5 @@ export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightPar
       setActiveWord(null, true);
       wordLayoutsRef.current = [];
     };
-  }, [containerRef, lastOffsetX, lastOffsetY, useLocalCalibration]);
+  }, [containerRef, highlightTokensBeingLookedAt, lastOffsetX, lastOffsetY, useLocalCalibration]);
 }

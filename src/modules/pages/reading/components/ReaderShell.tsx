@@ -17,6 +17,9 @@ type ReaderShellProps = {
   docId: string;
   markdown: string;
   preserveContextOnIntervention?: boolean;
+  highlightContext?: boolean;
+  displayGazePositions?: boolean;
+  highlightTokensBeingLookedAt?: boolean;
 };
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -32,6 +35,9 @@ export function ReaderShell({
   docId,
   markdown,
   preserveContextOnIntervention = false,
+  highlightContext = false,
+  displayGazePositions = true,
+  highlightTokensBeingLookedAt = true,
 }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -54,7 +60,7 @@ export function ReaderShell({
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
-  useGazeTokenHighlight({ containerRef });
+  useGazeTokenHighlight({ containerRef, highlightTokensBeingLookedAt });
 
   const parsedDoc = useMemo(() => parseMinimalMarkdown(markdown), [markdown]);
   const tokenizedBlocks = useMemo(() => tokenizeDocument(parsedDoc, docId), [docId, parsedDoc]);
@@ -65,6 +71,7 @@ export function ReaderShell({
     containerRef,
     contentRef,
     enabled: preserveContextOnIntervention,
+    highlightContext,
     interventionKey: `${fontSizePx}:${letterSpacingEm}:${wordSpacingEm}:${fontFamily}:${markdown}`,
   });
 
@@ -180,11 +187,13 @@ export function ReaderShell({
 
   return (
     <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
-      <LiveGazeOverlay
-        statusVariant="compact"
-        hideMarkerWhenNoPoint
-        markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
-      />
+      {displayGazePositions ? (
+        <LiveGazeOverlay
+          statusVariant="compact"
+          hideMarkerWhenNoPoint
+          markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
+        />
+      ) : null}
 
       <section
         className={
