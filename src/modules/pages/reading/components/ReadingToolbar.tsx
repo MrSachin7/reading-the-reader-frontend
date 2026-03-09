@@ -4,16 +4,25 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FONT_SIZE_OPTIONS, LINE_WIDTH_OPTIONS } from "@/modules/pages/reading/lib/useReadingSettings";
+import {
+  FONT_SIZE_OPTIONS,
+  LETTER_SPACING_OPTIONS,
+  WORD_SPACING_OPTIONS,
+} from "@/modules/pages/reading/lib/useReadingSettings";
 
 type ReadingToolbarProps = {
   estimatedTimeLabel: string;
   fontSizePx: number;
-  lineWidthPx: number;
+  letterSpacingEm: number;
+  wordSpacingEm: number;
+  fontFamilyLabel: string;
   onIncreaseFont: () => void;
   onDecreaseFont: () => void;
-  onIncreaseWidth: () => void;
-  onDecreaseWidth: () => void;
+  onIncreaseLetterSpacing: () => void;
+  onDecreaseLetterSpacing: () => void;
+  onIncreaseWordSpacing: () => void;
+  onDecreaseWordSpacing: () => void;
+  onCycleFontFamily: () => void;
   onReset: () => void;
   onEnterFocus: () => void;
 };
@@ -21,18 +30,27 @@ type ReadingToolbarProps = {
 export function ReadingToolbar({
   estimatedTimeLabel,
   fontSizePx,
-  lineWidthPx,
+  letterSpacingEm,
+  wordSpacingEm,
+  fontFamilyLabel,
   onIncreaseFont,
   onDecreaseFont,
-  onIncreaseWidth,
-  onDecreaseWidth,
+  onIncreaseLetterSpacing,
+  onDecreaseLetterSpacing,
+  onIncreaseWordSpacing,
+  onDecreaseWordSpacing,
+  onCycleFontFamily,
   onReset,
   onEnterFocus,
 }: ReadingToolbarProps) {
   const canDecreaseFont = fontSizePx > FONT_SIZE_OPTIONS[0];
   const canIncreaseFont = fontSizePx < FONT_SIZE_OPTIONS[FONT_SIZE_OPTIONS.length - 1];
-  const canDecreaseWidth = lineWidthPx > LINE_WIDTH_OPTIONS[0];
-  const canIncreaseWidth = lineWidthPx < LINE_WIDTH_OPTIONS[LINE_WIDTH_OPTIONS.length - 1];
+  const canDecreaseLetterSpacing = letterSpacingEm > LETTER_SPACING_OPTIONS[0];
+  const canIncreaseLetterSpacing =
+    letterSpacingEm < LETTER_SPACING_OPTIONS[LETTER_SPACING_OPTIONS.length - 1];
+  const canDecreaseWordSpacing = wordSpacingEm > WORD_SPACING_OPTIONS[0];
+  const canIncreaseWordSpacing =
+    wordSpacingEm < WORD_SPACING_OPTIONS[WORD_SPACING_OPTIONS.length - 1];
 
   return (
     <div className="sticky top-0 z-20 border-b bg-card/95 px-4 py-3 backdrop-blur md:px-6">
@@ -73,23 +91,53 @@ export function ReadingToolbar({
           <Button
             variant="outline"
             size="xs"
-            onClick={onDecreaseWidth}
-            disabled={!canDecreaseWidth}
-            aria-label="Decrease line width"
+            onClick={onDecreaseLetterSpacing}
+            disabled={!canDecreaseLetterSpacing}
+            aria-label="Decrease letter spacing"
           >
-            [
+            T-
           </Button>
-          <span className="w-16 text-center text-xs text-muted-foreground">{lineWidthPx}px</span>
+          <span className="w-16 text-center text-xs text-muted-foreground">
+            {letterSpacingEm.toFixed(2)}em
+          </span>
           <Button
             variant="outline"
             size="xs"
-            onClick={onIncreaseWidth}
-            disabled={!canIncreaseWidth}
-            aria-label="Increase line width"
+            onClick={onIncreaseLetterSpacing}
+            disabled={!canIncreaseLetterSpacing}
+            aria-label="Increase letter spacing"
           >
-            ]
+            T+
           </Button>
         </div>
+
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onDecreaseWordSpacing}
+            disabled={!canDecreaseWordSpacing}
+            aria-label="Decrease word spacing"
+          >
+            W-
+          </Button>
+          <span className="w-16 text-center text-xs text-muted-foreground">
+            {wordSpacingEm.toFixed(2)}em
+          </span>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={onIncreaseWordSpacing}
+            disabled={!canIncreaseWordSpacing}
+            aria-label="Increase word spacing"
+          >
+            W+
+          </Button>
+        </div>
+
+        <Button variant="outline" size="sm" onClick={onCycleFontFamily}>
+          {fontFamilyLabel}
+        </Button>
 
         <div className="ml-auto" />
 

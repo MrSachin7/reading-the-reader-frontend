@@ -3,12 +3,39 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 export const FONT_SIZE_OPTIONS = [16, 18, 20, 22] as const;
-export const LINE_WIDTH_OPTIONS = [560, 680, 820] as const;
+export const LETTER_SPACING_OPTIONS = [-0.01, 0, 0.01, 0.02] as const;
+export const WORD_SPACING_OPTIONS = [0, 0.04, 0.08, 0.12] as const;
+export const FONT_FAMILY_OPTIONS = [
+  {
+    value: "geist",
+    label: "Geist",
+    family: "var(--font-geist-sans)",
+  },
+  {
+    value: "inter",
+    label: "Inter",
+    family: "var(--font-inter)",
+  },
+  {
+    value: "space-grotesk",
+    label: "Space Grotesk",
+    family: "var(--font-space-grotesk)",
+  },
+  {
+    value: "merriweather",
+    label: "Merriweather",
+    family: "var(--font-merriweather)",
+  },
+] as const;
 
 const FONT_SIZE_KEY = "reading:fontSizePx";
-const LINE_WIDTH_KEY = "reading:lineWidthPx";
+const LETTER_SPACING_KEY = "reading:letterSpacingEm";
+const WORD_SPACING_KEY = "reading:wordSpacingEm";
+const FONT_FAMILY_KEY = "reading:fontFamily";
 const DEFAULT_FONT_SIZE = 18;
-const DEFAULT_LINE_WIDTH = 680;
+const DEFAULT_LETTER_SPACING = 0;
+const DEFAULT_WORD_SPACING = 0.04;
+const DEFAULT_FONT_FAMILY = "geist";
 
 const settingsListeners = new Set<() => void>();
 
@@ -26,6 +53,15 @@ function readStoredNumber(key: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function readStoredString(key: string): string | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const value = window.localStorage.getItem(key);
+  return value ?? undefined;
+}
+
 function clampToOptions<T extends readonly number[]>(
   value: number | undefined,
   options: T,
@@ -37,6 +73,19 @@ function clampToOptions<T extends readonly number[]>(
 
   return fallback;
 }
+
+function clampToStringOptions<T extends readonly { value: string }[]>(
+  value: string | undefined,
+  options: T,
+  fallback: T[number]["value"]
+): T[number]["value"] {
+  if (value !== undefined && options.some((option) => option.value === value)) {
+    return value as T[number]["value"];
+  }
+
+  return fallback;
+}
+
 function emitSettingsChange() {
   for (const listener of settingsListeners) {
     listener();
@@ -55,7 +104,13 @@ function subscribeToReadingSettings(listener: () => void) {
   const onStorage = (event: StorageEvent) => {
     if (
       event.storageArea === window.localStorage &&
-      (event.key === null || event.key === FONT_SIZE_KEY || event.key === LINE_WIDTH_KEY)
+      (
+        event.key === null ||
+        event.key === FONT_SIZE_KEY ||
+        event.key === LETTER_SPACING_KEY ||
+        event.key === WORD_SPACING_KEY ||
+        event.key === FONT_FAMILY_KEY
+      )
     ) {
       listener();
     }
@@ -86,11 +141,27 @@ function getFontSizeSnapshot() {
   );
 }
 
-function getLineWidthSnapshot() {
+function getLetterSpacingSnapshot() {
   return clampToOptions(
-    readStoredNumber(LINE_WIDTH_KEY),
-    LINE_WIDTH_OPTIONS,
-    DEFAULT_LINE_WIDTH
+    readStoredNumber(LETTER_SPACING_KEY),
+    LETTER_SPACING_OPTIONS,
+    DEFAULT_LETTER_SPACING
+  );
+}
+
+function getWordSpacingSnapshot() {
+  return clampToOptions(
+    readStoredNumber(WORD_SPACING_KEY),
+    WORD_SPACING_OPTIONS,
+    DEFAULT_WORD_SPACING
+  );
+}
+
+function getFontFamilySnapshot() {
+  return clampToStringOptions(
+    readStoredString(FONT_FAMILY_KEY),
+    FONT_FAMILY_OPTIONS,
+    DEFAULT_FONT_FAMILY
   );
 }
 
@@ -100,10 +171,20 @@ export function useReadingSettings() {
     getFontSizeSnapshot,
     () => DEFAULT_FONT_SIZE
   );
-  const lineWidthPx = useSyncExternalStore(
+  const letterSpacingEm = useSyncExternalStore(
     subscribeToReadingSettings,
-    getLineWidthSnapshot,
-    () => DEFAULT_LINE_WIDTH
+    getLetterSpacingSnapshot,
+    () => DEFAULT_LETTER_SPACING
+  );
+  const wordSpacingEm = useSyncExternalStore(
+    subscribeToReadingSettings,
+    getWordSpacingSnapshot,
+    () => DEFAULT_WORD_SPACING
+  );
+  const fontFamily = useSyncExternalStore(
+    subscribeToReadingSettings,
+    getFontFamilySnapshot,
+    () => DEFAULT_FONT_FAMILY
   );
 
   const fontIndex = useMemo(
@@ -111,9 +192,19 @@ export function useReadingSettings() {
     [fontSizePx]
   );
 
-  const widthIndex = useMemo(
-    () => LINE_WIDTH_OPTIONS.findIndex((option) => option === lineWidthPx),
-    [lineWidthPx]
+  const letterSpacingIndex = useMemo(
+    () => LETTER_SPACING_OPTIONS.findIndex((option) => option === letterSpacingEm),
+    [letterSpacingEm]
+  );
+
+  const wordSpacingIndex = useMemo(
+    () => WORD_SPACING_OPTIONS.findIndex((option) => option === wordSpacingEm),
+    [wordSpacingEm]
+  );
+
+  const fontFamilyIndex = useMemo(
+    () => FONT_FAMILY_OPTIONS.findIndex((option) => option.value === fontFamily),
+    [fontFamily]
   );
 
   const setFontSizePx = useCallback((value: number) => {
@@ -123,11 +214,30 @@ export function useReadingSettings() {
     );
   }, []);
 
-  const setLineWidthPx = useCallback((value: number) => {
+  const setLetterSpacingEm = useCallback((value: number) => {
     writeStoredNumber(
-      LINE_WIDTH_KEY,
-      clampToOptions(value, LINE_WIDTH_OPTIONS, DEFAULT_LINE_WIDTH)
+      LETTER_SPACING_KEY,
+      clampToOptions(value, LETTER_SPACING_OPTIONS, DEFAULT_LETTER_SPACING)
     );
+  }, []);
+
+  const setWordSpacingEm = useCallback((value: number) => {
+    writeStoredNumber(
+      WORD_SPACING_KEY,
+      clampToOptions(value, WORD_SPACING_OPTIONS, DEFAULT_WORD_SPACING)
+    );
+  }, []);
+
+  const setFontFamily = useCallback((value: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      FONT_FAMILY_KEY,
+      clampToStringOptions(value, FONT_FAMILY_OPTIONS, DEFAULT_FONT_FAMILY)
+    );
+    emitSettingsChange();
   }, []);
 
   const increaseFontSize = useCallback(() => {
@@ -142,26 +252,68 @@ export function useReadingSettings() {
     }
   }, [fontIndex]);
 
-  const increaseLineWidth = useCallback(() => {
-    if (widthIndex >= 0 && widthIndex < LINE_WIDTH_OPTIONS.length - 1) {
-      writeStoredNumber(LINE_WIDTH_KEY, LINE_WIDTH_OPTIONS[widthIndex + 1]);
+  const increaseLetterSpacing = useCallback(() => {
+    if (letterSpacingIndex >= 0 && letterSpacingIndex < LETTER_SPACING_OPTIONS.length - 1) {
+      writeStoredNumber(
+        LETTER_SPACING_KEY,
+        LETTER_SPACING_OPTIONS[letterSpacingIndex + 1]
+      );
     }
-  }, [widthIndex]);
+  }, [letterSpacingIndex]);
 
-  const decreaseLineWidth = useCallback(() => {
-    if (widthIndex > 0) {
-      writeStoredNumber(LINE_WIDTH_KEY, LINE_WIDTH_OPTIONS[widthIndex - 1]);
+  const decreaseLetterSpacing = useCallback(() => {
+    if (letterSpacingIndex > 0) {
+      writeStoredNumber(
+        LETTER_SPACING_KEY,
+        LETTER_SPACING_OPTIONS[letterSpacingIndex - 1]
+      );
     }
-  }, [widthIndex]);
+  }, [letterSpacingIndex]);
+
+  const increaseWordSpacing = useCallback(() => {
+    if (wordSpacingIndex >= 0 && wordSpacingIndex < WORD_SPACING_OPTIONS.length - 1) {
+      writeStoredNumber(
+        WORD_SPACING_KEY,
+        WORD_SPACING_OPTIONS[wordSpacingIndex + 1]
+      );
+    }
+  }, [wordSpacingIndex]);
+
+  const decreaseWordSpacing = useCallback(() => {
+    if (wordSpacingIndex > 0) {
+      writeStoredNumber(
+        WORD_SPACING_KEY,
+        WORD_SPACING_OPTIONS[wordSpacingIndex - 1]
+      );
+    }
+  }, [wordSpacingIndex]);
+
+  const cycleFontFamily = useCallback(() => {
+    const nextIndex =
+      fontFamilyIndex >= FONT_FAMILY_OPTIONS.length - 1 ? 0 : fontFamilyIndex + 1;
+    setFontFamily(FONT_FAMILY_OPTIONS[nextIndex].value);
+  }, [fontFamilyIndex, setFontFamily]);
 
   return {
     fontSizePx,
-    lineWidthPx,
+    letterSpacingEm,
+    wordSpacingEm,
+    fontFamily,
+    fontFamilyLabel:
+      FONT_FAMILY_OPTIONS.find((option) => option.value === fontFamily)?.label ?? "Serif",
+    fontFamilyStyle:
+      FONT_FAMILY_OPTIONS.find((option) => option.value === fontFamily)?.family ??
+      FONT_FAMILY_OPTIONS[0].family,
     setFontSizePx,
-    setLineWidthPx,
+    setLetterSpacingEm,
+    setWordSpacingEm,
+    setFontFamily,
     increaseFontSize,
     decreaseFontSize,
-    increaseLineWidth,
-    decreaseLineWidth,
+    increaseLetterSpacing,
+    decreaseLetterSpacing,
+    increaseWordSpacing,
+    decreaseWordSpacing,
+    cycleFontFamily,
   };
 }
