@@ -1,4 +1,4 @@
-import type { InlineNode, MdBlock, MdDoc } from "@/modules/reading/lib/minimalMarkdown";
+import type { InlineNode, MdBlock, MdDoc } from "@/modules/pages/reading/lib/minimalMarkdown";
 
 export type Token = {
   id: string;

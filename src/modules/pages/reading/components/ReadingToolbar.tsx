@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FONT_SIZE_OPTIONS, LINE_WIDTH_OPTIONS } from "@/modules/reading/lib/useReadingSettings";
+import { FONT_SIZE_OPTIONS, LINE_WIDTH_OPTIONS } from "@/modules/pages/reading/lib/useReadingSettings";
 
 type ReadingToolbarProps = {
   estimatedTimeLabel: string;

@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { MarkdownReader } from "@/modules/reading/components/MarkdownReader";
-import { ReadingToolbar } from "@/modules/reading/components/ReadingToolbar";
-import { countWords, formatEstimatedMinutes } from "@/modules/reading/lib/readingMetrics";
-import { parseMinimalMarkdown } from "@/modules/reading/lib/minimalMarkdown";
-import { tokenizeDocument } from "@/modules/reading/lib/tokenize";
-import { useReadingProgress } from "@/modules/reading/lib/useReadingProgress";
-import { useReadingSettings } from "@/modules/reading/lib/useReadingSettings";
+import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader";
+import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
+import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
+import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
+import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
+import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
+import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettings";
 
 type ReaderShellProps = {
   docId: string;
