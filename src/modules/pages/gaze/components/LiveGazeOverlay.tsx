@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 
 import { type ConnectionStats, subscribeToConnectionStats, subscribeToGaze } from "@/lib/gaze-socket";
 import { cn } from "@/lib/utils";
-import { calculateGazePoint, formatGazeTime, type GazePoint } from "@/modules/pages/gaze/lib/gaze-helpers";
+import {
+  calculateGazePoint,
+  formatGazeTime,
+  normalizeGazePoint,
+  type GazePoint,
+} from "@/modules/pages/gaze/lib/gaze-helpers";
 
 type StatusVariant = "none" | "compact" | "panel";
 
@@ -27,13 +32,21 @@ export function LiveGazeOverlay({
   const lastPongRef = useRef<HTMLSpanElement>(null);
 
   const latestPointRef = useRef<GazePoint | null>(null);
+  const normalizedPointRef = useRef<GazePoint | null>(null);
   const latestStatsRef = useRef<ConnectionStats | null>(null);
   const sampleCounterRef = useRef(0);
   const lastRateFrameAtRef = useRef(0);
+  const lastValidPointAtRef = useRef(0);
 
   useEffect(() => {
     const unsubscribeGaze = subscribeToGaze((sample) => {
-      latestPointRef.current = calculateGazePoint(sample);
+      const nextPoint = calculateGazePoint(sample);
+      if (!nextPoint) {
+        return;
+      }
+
+      latestPointRef.current = nextPoint;
+      lastValidPointAtRef.current = performance.now();
       sampleCounterRef.current += 1;
     });
 
@@ -48,12 +61,18 @@ export function LiveGazeOverlay({
 
     const render = (now: number) => {
       const marker = markerRef.current;
-      const point = latestPointRef.current;
+      const latestPoint = latestPointRef.current;
       if (marker) {
-        if (point) {
+        if (latestPoint && now - lastValidPointAtRef.current <= 650) {
+          const normalizedPoint = normalizeGazePoint(
+            normalizedPointRef.current,
+            latestPoint
+          );
+          normalizedPointRef.current = normalizedPoint;
           marker.style.opacity = "1";
-          marker.style.transform = `translate(-50%, -50%) translate(${point.x * 100}vw, ${point.y * 100}vh)`;
+          marker.style.transform = `translate(-50%, -50%) translate(${normalizedPoint.x * 100}vw, ${normalizedPoint.y * 100}vh)`;
         } else {
+          normalizedPointRef.current = null;
           marker.style.opacity = hideMarkerWhenNoPoint ? "0" : "0.2";
         }
       }

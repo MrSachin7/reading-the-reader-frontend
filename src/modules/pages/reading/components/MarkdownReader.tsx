@@ -11,14 +11,19 @@ type MarkdownReaderProps = {
 function renderToken(token: Token) {
   if (token.kind === "word") {
     return (
-      <span key={token.id} data-token-id={token.id}>
+      <span
+        key={token.id}
+        data-token-id={token.id}
+        data-token-kind={token.kind}
+        className="rounded-[0.4rem] px-[0.08em] transition-[background-color,color,box-shadow] duration-150 data-[gaze-active=true]:bg-blue-400/22 data-[gaze-active=true]:text-blue-950 data-[gaze-active=true]:shadow-[0_0_0_1px_rgba(96,165,250,0.34)] dark:data-[gaze-active=true]:text-blue-50"
+      >
         {token.text}
       </span>
     );
   }
 
   return (
-    <span key={token.id} aria-hidden="true">
+    <span key={token.id} data-token-id={token.id} data-token-kind={token.kind} aria-hidden="true">
       {token.text}
     </span>
   );

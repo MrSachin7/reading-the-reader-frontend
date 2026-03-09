@@ -8,6 +8,7 @@ import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolba
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
 import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
+import { useGazeTokenHighlight } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
 import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettings";
 
@@ -39,6 +40,7 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
+  useGazeTokenHighlight({ containerRef });
 
   const parsedDoc = useMemo(() => parseMinimalMarkdown(markdown), [markdown]);
   const tokenizedBlocks = useMemo(() => tokenizeDocument(parsedDoc, docId), [docId, parsedDoc]);
@@ -133,7 +135,7 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
       <LiveGazeOverlay
         statusVariant="compact"
         hideMarkerWhenNoPoint
-        markerClassName="h-4 w-4 border-cyan-400 bg-cyan-500/60 shadow-[0_0_22px_rgba(0,220,255,0.72)]"
+        markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
       />
 
       <section
