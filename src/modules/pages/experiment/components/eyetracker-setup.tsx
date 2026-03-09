@@ -221,10 +221,14 @@ export function EyetrackerSetup({
 
   return (
     <Card>
-      <CardHeader className="space-y-1 pb-4">
-        <CardTitle className="text-lg">Eyetracker setup</CardTitle>
-        <CardDescription>
-          Choose your eyetracker and upload the associated license file.
+      <CardHeader className="border-b pb-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Step 1</Badge>
+          <Badge variant="outline">Eyetracker</Badge>
+        </div>
+        <CardTitle className="mt-3 text-3xl tracking-tight">Choose and prepare the eyetracker.</CardTitle>
+        <CardDescription className="max-w-3xl text-base leading-7">
+          Select the eyetracker used for this session and upload the associated license when needed.
         </CardDescription>
       </CardHeader>
 

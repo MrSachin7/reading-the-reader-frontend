@@ -19,6 +19,7 @@ type ExperimentStepTwoState = {
 
 type ExperimentStepThreeState = {
   externalCalibrationCompleted: boolean
+  useLocalCalibration: boolean
   internalCalibrationStatus: "pending" | "skipped" | "completed"
   lastAppliedAtUnixMs: number | null
   lastQuality: "good" | "fair" | "poor" | "unknown" | null
@@ -32,6 +33,17 @@ type ExperimentState = {
   stepTwo: ExperimentStepTwoState
   stepThree: ExperimentStepThreeState
 }
+
+export type PersistedStepThreeCalibrationState = Pick<
+  ExperimentStepThreeState,
+  | "useLocalCalibration"
+  | "internalCalibrationStatus"
+  | "lastAppliedAtUnixMs"
+  | "lastQuality"
+  | "lastAverageOffset"
+  | "lastOffsetX"
+  | "lastOffsetY"
+>
 
 const initialState: ExperimentState = {
   stepOne: {
@@ -51,6 +63,7 @@ const initialState: ExperimentState = {
   },
   stepThree: {
     externalCalibrationCompleted: false,
+    useLocalCalibration: false,
     internalCalibrationStatus: "pending",
     lastAppliedAtUnixMs: null,
     lastQuality: null,
@@ -106,6 +119,9 @@ const experimentSlice = createSlice({
     setStepThreeExternalCalibrationCompleted: (state, action: PayloadAction<boolean>) => {
       state.stepThree.externalCalibrationCompleted = action.payload
     },
+    setStepThreeUseLocalCalibration: (state, action: PayloadAction<boolean>) => {
+      state.stepThree.useLocalCalibration = action.payload
+    },
     setStepThreeInternalCalibrationStatus: (
       state,
       action: PayloadAction<ExperimentStepThreeState["internalCalibrationStatus"]>
@@ -130,6 +146,15 @@ const experimentSlice = createSlice({
     setStepThreeLastOffsetY: (state, action: PayloadAction<number | null>) => {
       state.stepThree.lastOffsetY = action.payload
     },
+    hydrateStepThreeCalibrationState: (
+      state,
+      action: PayloadAction<PersistedStepThreeCalibrationState>
+    ) => {
+      state.stepThree = {
+        ...state.stepThree,
+        ...action.payload,
+      }
+    },
     resetStepThreeState: (state) => {
       state.stepThree = initialState.stepThree
     },
@@ -151,12 +176,14 @@ export const {
   setStepTwoLastSyncedFingerprint,
   resetStepTwoState,
   setStepThreeExternalCalibrationCompleted,
+  setStepThreeUseLocalCalibration,
   setStepThreeInternalCalibrationStatus,
   setStepThreeLastAppliedAtUnixMs,
   setStepThreeLastQuality,
   setStepThreeLastAverageOffset,
   setStepThreeLastOffsetX,
   setStepThreeLastOffsetY,
+  hydrateStepThreeCalibrationState,
   resetStepThreeState,
 } = experimentSlice.actions
 

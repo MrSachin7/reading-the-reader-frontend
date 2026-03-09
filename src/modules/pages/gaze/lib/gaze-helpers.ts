@@ -15,6 +15,22 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
+export function applyGazeOffset(
+  point: GazePoint | null,
+  offsetX: number | null,
+  offsetY: number | null,
+  enabled: boolean
+) {
+  if (!point || !enabled) {
+    return point;
+  }
+
+  return {
+    x: clamp01(point.x + (offsetX ?? 0)),
+    y: clamp01(point.y + (offsetY ?? 0)),
+  };
+}
+
 export function calculateGazePoint(sample: GazeData): GazePoint | null {
   const leftValid = isValidEye(sample.leftEyeValidity);
   const rightValid = isValidEye(sample.rightEyeValidity);

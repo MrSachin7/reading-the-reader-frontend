@@ -3,7 +3,7 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { LucideIcon } from "lucide-react"
-import { CheckCircle2, Crosshair, FileText } from "lucide-react"
+import { Crosshair, FileText, ScanEye } from "lucide-react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
 
@@ -23,7 +23,7 @@ import type { RootState } from "@/redux"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -60,7 +60,7 @@ export function ExperimentStepNavigation({
       {steps.map((stepItem) => {
         const Icon = stepItem.icon
         const isActive = step === stepItem.value
-        const isCompleted = step > stepItem.value
+        const isCompleted = Boolean(completion[stepItem.value]) || step > stepItem.value
         const isLocked = step < stepItem.value
         const stepStatus = completion[stepItem.value]
           ? "Done"
@@ -138,8 +138,8 @@ const steps: ExperimentStep[] = [
     value: 2,
     name: "step3",
     label: "Calibration",
-    description: "Guide the participant in a full-screen workspace and estimate the local correction.",
-    icon: CheckCircle2,
+    description: "Confirm that calibration has been completed in the Tobii software.",
+    icon: ScanEye,
   },
 ]
 
@@ -308,6 +308,16 @@ function ParticipantInformationForm({
 
   return (
     <Card>
+      <CardHeader className="border-b pb-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Step 2</Badge>
+          <Badge variant="outline">Participant</Badge>
+        </div>
+        <CardTitle className="mt-3 text-3xl tracking-tight">Capture participant information.</CardTitle>
+        <CardDescription className="max-w-3xl text-base leading-7">
+          Record the participant details used to identify the session and group the reading data.
+        </CardDescription>
+      </CardHeader>
       <CardContent className="space-y-4 pt-6">
         <form id="participant-info-form" onSubmit={(event) => event.preventDefault()}>
           <FieldGroup>
@@ -472,8 +482,8 @@ export function ExperimentStepper() {
   }
 
   return (
-    <div className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <aside className="xl:sticky xl:top-24 xl:self-start">
+    <div className="grid gap-6 2xl:grid-cols-[320px_minmax(0,1fr)] 2xl:gap-8">
+      <aside className="2xl:sticky 2xl:top-24 2xl:self-start">
         <ExperimentStepNavigation
           step={step}
           onStepChange={setStep}
@@ -530,7 +540,7 @@ export function ExperimentStepper() {
             <p className="text-sm text-muted-foreground">
               {isCurrentStepComplete
                 ? "Calibration step complete."
-                : "Launch the full-screen workspace and either accept or skip the in-app pass."}
+                : "Confirm that calibration has been completed in the Tobii software."}
             </p>
           )}
         </div>

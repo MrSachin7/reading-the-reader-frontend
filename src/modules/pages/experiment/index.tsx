@@ -2,18 +2,17 @@ import { ExperimentStepper } from "./components/experiment-stepper";
 
 export default function ExperimentPage() {
   return (
-    <main className="w-full px-4 py-6 sm:px-6 sm:py-8">
-      <section className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Experiment setup</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">Prepare the session from one workspace.</h1>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
-          Each step stays focused on one job. The calibration step opens its own full-screen flow so
-          the participant uses the entire display.
+    <section className="w-full space-y-6">
+      <header>
+        <h1 className="text-3xl font-semibold tracking-tight">Experiment setup</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
+          Work through the setup in order: connect the eyetracker, register the participant, and
+          confirm that calibration has been completed in the Tobii software before starting.
         </p>
-      </section>
-      <section className="w-full">
+      </header>
+      <div className="w-full">
         <ExperimentStepper />
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }

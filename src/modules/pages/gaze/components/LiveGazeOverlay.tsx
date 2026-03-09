@@ -2,14 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-import { type ConnectionStats, subscribeToConnectionStats, subscribeToGaze } from "@/lib/gaze-socket";
+import { type ConnectionStats } from "@/lib/gaze-socket";
 import { cn } from "@/lib/utils";
-import {
-  calculateGazePoint,
-  formatGazeTime,
-  normalizeGazePoint,
-  type GazePoint,
-} from "@/modules/pages/gaze/lib/gaze-helpers";
+import { formatGazeTime, type GazePoint } from "@/modules/pages/gaze/lib/gaze-helpers";
+import { useLiveGazeStream } from "@/modules/pages/gaze/lib/use-live-gaze-stream";
 
 type StatusVariant = "none" | "compact" | "panel";
 
@@ -17,12 +13,20 @@ type LiveGazeOverlayProps = {
   statusVariant?: StatusVariant;
   hideMarkerWhenNoPoint?: boolean;
   markerClassName?: string;
+  point?: GazePoint | null;
+  connectionStats?: ConnectionStats | null;
+  sampleRateHz?: number;
+  hasRecentGaze?: boolean;
 };
 
 export function LiveGazeOverlay({
   statusVariant = "none",
   hideMarkerWhenNoPoint = false,
   markerClassName,
+  point,
+  connectionStats,
+  sampleRateHz,
+  hasRecentGaze,
 }: LiveGazeOverlayProps) {
   const markerRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
@@ -31,94 +35,51 @@ export function LiveGazeOverlay({
   const serverTimeRef = useRef<HTMLSpanElement>(null);
   const lastPongRef = useRef<HTMLSpanElement>(null);
 
-  const latestPointRef = useRef<GazePoint | null>(null);
-  const normalizedPointRef = useRef<GazePoint | null>(null);
-  const latestStatsRef = useRef<ConnectionStats | null>(null);
-  const sampleCounterRef = useRef(0);
-  const lastRateFrameAtRef = useRef(0);
-  const lastValidPointAtRef = useRef(0);
+  const stream = useLiveGazeStream();
+  const resolvedPoint = point === undefined ? stream.smoothedPoint : point;
+  const resolvedStats = connectionStats === undefined ? stream.connectionStats : connectionStats;
+  const resolvedSampleRateHz = sampleRateHz === undefined ? stream.sampleRateHz : sampleRateHz;
+  const resolvedHasRecentGaze = hasRecentGaze === undefined ? stream.hasRecentGaze : hasRecentGaze;
 
   useEffect(() => {
-    const unsubscribeGaze = subscribeToGaze((sample) => {
-      const nextPoint = calculateGazePoint(sample);
-      if (!nextPoint) {
-        return;
-      }
+    const marker = markerRef.current;
+    if (!marker) {
+      return;
+    }
 
-      latestPointRef.current = nextPoint;
-      lastValidPointAtRef.current = performance.now();
-      sampleCounterRef.current += 1;
-    });
+    if (resolvedPoint && resolvedHasRecentGaze) {
+      marker.style.opacity = "1";
+      marker.style.transform = `translate(-50%, -50%) translate(${resolvedPoint.x * 100}vw, ${resolvedPoint.y * 100}vh)`;
+      return;
+    }
 
-    const unsubscribeStats =
-      statusVariant === "none"
-        ? null
-        : subscribeToConnectionStats((stats) => {
-            latestStatsRef.current = stats;
-          });
+    marker.style.opacity = hideMarkerWhenNoPoint ? "0" : "0.2";
+  }, [hideMarkerWhenNoPoint, resolvedHasRecentGaze, resolvedPoint]);
 
-    let frameId = 0;
+  useEffect(() => {
+    if (statusVariant === "none") {
+      return;
+    }
 
-    const render = (now: number) => {
-      const marker = markerRef.current;
-      const latestPoint = latestPointRef.current;
-      if (marker) {
-        if (latestPoint && now - lastValidPointAtRef.current <= 650) {
-          const normalizedPoint = normalizeGazePoint(
-            normalizedPointRef.current,
-            latestPoint
-          );
-          normalizedPointRef.current = normalizedPoint;
-          marker.style.opacity = "1";
-          marker.style.transform = `translate(-50%, -50%) translate(${normalizedPoint.x * 100}vw, ${normalizedPoint.y * 100}vh)`;
-        } else {
-          normalizedPointRef.current = null;
-          marker.style.opacity = hideMarkerWhenNoPoint ? "0" : "0.2";
-        }
-      }
-
-      if (statusVariant !== "none") {
-        const stats = latestStatsRef.current;
-        if (statusRef.current && stats) {
-          statusRef.current.textContent = stats.status;
-        }
-        if (rttRef.current && stats) {
-          rttRef.current.textContent = stats.lastRttMs === null ? "-" : `${stats.lastRttMs} ms`;
-        }
-        if (serverTimeRef.current && stats) {
-          serverTimeRef.current.textContent = formatGazeTime(stats.lastServerTimeUnixMs);
-        }
-        if (lastPongRef.current && stats) {
-          lastPongRef.current.textContent = formatGazeTime(stats.lastPongAtUnixMs);
-        }
-
-        if (rateRef.current) {
-          const lastAt = lastRateFrameAtRef.current;
-          if (lastAt === 0) {
-            lastRateFrameAtRef.current = now;
-          } else {
-            const delta = now - lastAt;
-            if (delta >= 1000) {
-              const hz = Math.round((sampleCounterRef.current * 1000) / delta);
-              rateRef.current.textContent = `${hz} Hz`;
-              sampleCounterRef.current = 0;
-              lastRateFrameAtRef.current = now;
-            }
-          }
-        }
-      }
-
-      frameId = window.requestAnimationFrame(render);
-    };
-
-    frameId = window.requestAnimationFrame(render);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      unsubscribeGaze();
-      unsubscribeStats?.();
-    };
-  }, [hideMarkerWhenNoPoint, statusVariant]);
+    if (statusRef.current) {
+      statusRef.current.textContent = resolvedStats?.status ?? "connecting";
+    }
+    if (rttRef.current) {
+      rttRef.current.textContent =
+        resolvedStats?.lastRttMs === null || resolvedStats?.lastRttMs === undefined
+          ? "-"
+          : `${resolvedStats.lastRttMs} ms`;
+    }
+    if (serverTimeRef.current) {
+      serverTimeRef.current.textContent = formatGazeTime(resolvedStats?.lastServerTimeUnixMs ?? null);
+    }
+    if (lastPongRef.current) {
+      lastPongRef.current.textContent = formatGazeTime(resolvedStats?.lastPongAtUnixMs ?? null);
+    }
+    if (rateRef.current) {
+      rateRef.current.textContent = `${resolvedSampleRateHz} Hz`;
+    }
+  }, [resolvedSampleRateHz, resolvedStats, statusVariant]);
 
   return (
     <>

@@ -17,6 +17,7 @@ export type {
   SelectEyetrackerPayload,
   SaveParticipantPayload,
 } from "./api"
+export type { PersistedStepThreeCalibrationState } from "./slices/experiment-slice"
 export { useAppDispatch, useAppSelector, useAppStore } from "./hooks"
 export { ReduxProvider } from "./redux-provider"
 export { makeStore } from "./store"
@@ -35,10 +36,12 @@ export {
   setStepTwoReadingProficiency,
   setStepTwoSex,
   setStepThreeExternalCalibrationCompleted,
+  setStepThreeUseLocalCalibration,
   setStepThreeInternalCalibrationStatus,
   setStepThreeLastAppliedAtUnixMs,
   setStepThreeLastAverageOffset,
   setStepThreeLastOffsetX,
   setStepThreeLastOffsetY,
   setStepThreeLastQuality,
+  hydrateStepThreeCalibrationState,
 } from "./slices/experiment-slice"
