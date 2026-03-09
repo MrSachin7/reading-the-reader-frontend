@@ -6,6 +6,7 @@ type UsePreserveReadingContextParams = {
   containerRef: RefObject<HTMLElement | null>;
   contentRef: RefObject<HTMLElement | null>;
   enabled: boolean;
+  highlightContext: boolean;
   interventionKey: string;
 };
 
@@ -21,6 +22,8 @@ type ContextSnapshot = {
 
 const PRIMARY_ANCHOR_MAX_ERROR_PX = 8;
 const FALLBACK_ANCHOR_MAX_ERROR_PX = 16;
+const CONTEXT_HIGHLIGHT_DURATION_MS = 4000;
+const CONTEXT_HIGHLIGHT_MIN_VISIBLE_MS = 900;
 
 function getTokenCenterY(token: HTMLElement) {
   const rect = token.getBoundingClientRect();
@@ -52,6 +55,22 @@ function clearVerticalCompensation(content: HTMLElement | null) {
   content.style.transform = "";
   content.style.transformOrigin = "";
   content.style.willChange = "";
+}
+
+function applyContextHighlight(element: HTMLElement) {
+  element.dataset.contextAnchor = "true";
+  element.style.setProperty("outline", "2px solid rgba(245, 158, 11, 0.7)");
+  element.style.setProperty("outline-offset", "0.12em");
+}
+
+function clearContextHighlightFromElement(element: HTMLElement | null) {
+  if (!element) {
+    return;
+  }
+
+  delete element.dataset.contextAnchor;
+  element.style.removeProperty("outline");
+  element.style.removeProperty("outline-offset");
 }
 
 function captureSnapshot(container: HTMLElement): ContextSnapshot | null {
@@ -186,25 +205,98 @@ export function usePreserveReadingContext({
   containerRef,
   contentRef,
   enabled,
+  highlightContext,
   interventionKey,
 }: UsePreserveReadingContextParams) {
+  const shouldTrackContext = enabled || highlightContext;
   const latestSnapshotRef = useRef<ContextSnapshot | null>(null);
   const previousInterventionKeyRef = useRef<string | null>(null);
+  const highlightedTokenIdRef = useRef<string | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const highlightFrameRef = useRef<number | null>(null);
+
+  const clearContextHighlight = useCallback((container: HTMLElement | null) => {
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+
+    if (highlightFrameRef.current !== null) {
+      window.cancelAnimationFrame(highlightFrameRef.current);
+      highlightFrameRef.current = null;
+    }
+
+    if (container && highlightedTokenIdRef.current) {
+      clearContextHighlightFromElement(
+        container.querySelector<HTMLElement>(getTokenSelector(highlightedTokenIdRef.current))
+      );
+    }
+
+    highlightedTokenIdRef.current = null;
+  }, []);
+
+  const startContextHighlight = useCallback(
+    (container: HTMLElement, tokenId: string) => {
+      clearContextHighlight(container);
+
+      const token = container.querySelector<HTMLElement>(getTokenSelector(tokenId));
+      if (!token) {
+        return;
+      }
+
+      highlightedTokenIdRef.current = tokenId;
+      applyContextHighlight(token);
+
+      const startedAt = performance.now();
+
+      const checkForReacquire = () => {
+        const currentTokenId = highlightedTokenIdRef.current;
+        if (!currentTokenId) {
+          return;
+        }
+
+        const currentToken = container.querySelector<HTMLElement>(getTokenSelector(currentTokenId));
+        if (currentToken) {
+          applyContextHighlight(currentToken);
+        }
+
+        const activeToken = container.querySelector<HTMLElement>('[data-gaze-active="true"]');
+        const activeTokenId = activeToken?.dataset.tokenId;
+        if (
+          activeTokenId === currentTokenId &&
+          performance.now() - startedAt >= CONTEXT_HIGHLIGHT_MIN_VISIBLE_MS
+        ) {
+          clearContextHighlight(container);
+          return;
+        }
+
+        highlightFrameRef.current = window.requestAnimationFrame(checkForReacquire);
+      };
+
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        clearContextHighlight(container);
+      }, CONTEXT_HIGHLIGHT_DURATION_MS);
+
+      highlightFrameRef.current = window.requestAnimationFrame(checkForReacquire);
+    },
+    [clearContextHighlight]
+  );
 
   const captureContextAnchor = useCallback(() => {
     const container = containerRef.current;
-    if (!enabled || !container) {
+    if (!shouldTrackContext || !container) {
       return;
     }
 
     latestSnapshotRef.current = captureSnapshot(container);
-  }, [containerRef, enabled]);
+  }, [containerRef, shouldTrackContext]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
 
-    if (!enabled || !container || !content) {
+    if (!shouldTrackContext || !container || !content) {
+      clearContextHighlight(container ?? null);
       clearVerticalCompensation(content ?? null);
       previousInterventionKeyRef.current = interventionKey;
       return;
@@ -234,11 +326,22 @@ export function usePreserveReadingContext({
     let frameC = 0;
 
     frameA = window.requestAnimationFrame(() => {
-      restoreSnapshot(container, content, snapshot);
-      frameB = window.requestAnimationFrame(() => {
+      if (enabled) {
         restoreSnapshot(container, content, snapshot);
-        frameC = window.requestAnimationFrame(() => {
+      }
+      frameB = window.requestAnimationFrame(() => {
+        if (enabled) {
           restoreSnapshot(container, content, snapshot);
+        }
+        frameC = window.requestAnimationFrame(() => {
+          if (enabled) {
+            restoreSnapshot(container, content, snapshot);
+          }
+
+          if (highlightContext) {
+            startContextHighlight(container, snapshot.primaryAnchor.tokenId);
+          }
+
           latestSnapshotRef.current = captureSnapshot(container);
         });
       });
@@ -249,7 +352,24 @@ export function usePreserveReadingContext({
       window.cancelAnimationFrame(frameB);
       window.cancelAnimationFrame(frameC);
     };
-  }, [containerRef, contentRef, enabled, interventionKey]);
+  }, [
+    clearContextHighlight,
+    containerRef,
+    contentRef,
+    enabled,
+    highlightContext,
+    interventionKey,
+    shouldTrackContext,
+    startContextHighlight,
+  ]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+
+    return () => {
+      clearContextHighlight(container);
+    };
+  }, [clearContextHighlight, containerRef]);
 
   return {
     captureContextAnchor,

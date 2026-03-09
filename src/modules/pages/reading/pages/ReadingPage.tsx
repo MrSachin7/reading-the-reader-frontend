@@ -9,6 +9,9 @@ export function ReadingPage() {
       docId={MOCK_DOC_ID}
       markdown={MOCK_READING_MD}
       preserveContextOnIntervention = {true}
+      highlightContext = {true}
+      displayGazePositions = {false}
+      highlightTokensBeingLookedAt = {false}
     />
   );
 }
