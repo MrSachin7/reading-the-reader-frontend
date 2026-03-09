@@ -32,7 +32,9 @@ type ServerEnvelope =
 
 type ClientEnvelope =
   | { type: "ping"; payload: Record<string, never> }
-  | { type: "getExperimentState"; payload: Record<string, never> };
+  | { type: "getExperimentState"; payload: Record<string, never> }
+  | { type: "subscribeGazeData"; payload: Record<string, never> }
+  | { type: "unsubscribeGazeData"; payload: Record<string, never> };
 
 export interface ConnectionStats {
   status: "connecting" | "open" | "closed";
@@ -52,6 +54,7 @@ let reconnectTimer: number | null = null;
 let pingTimer: number | null = null;
 let shouldReconnect = true;
 let lastPingSentAt = 0;
+let wantsGazeSubscription = false;
 
 let stats: ConnectionStats = {
   status: "closed",
@@ -93,10 +96,33 @@ function getWsUrl() {
 
 function send(message: ClientEnvelope) {
   if (socket?.readyState !== WebSocket.OPEN) {
+    console.log("WebSocket Request Skipped:", {
+      url: getWsUrl(),
+      readyState: socket?.readyState ?? null,
+      message,
+    });
     return;
   }
 
+  console.log("WebSocket Request:", {
+    url: getWsUrl(),
+    message,
+  });
   socket.send(JSON.stringify(message));
+}
+
+function syncGazeSubscription() {
+  const nextWantsGazeSubscription = gazeListeners.size > 0;
+
+  if (nextWantsGazeSubscription === wantsGazeSubscription) {
+    return;
+  }
+
+  wantsGazeSubscription = nextWantsGazeSubscription;
+  send({
+    type: wantsGazeSubscription ? "subscribeGazeData" : "unsubscribeGazeData",
+    payload: {},
+  });
 }
 
 function startPingLoop() {
@@ -131,6 +157,10 @@ function scheduleReconnect() {
 function handleMessage(raw: MessageEvent<string>) {
   try {
     const message = JSON.parse(raw.data) as ServerEnvelope;
+    console.log("WebSocket Response:", {
+      url: getWsUrl(),
+      message,
+    });
 
     if (message.type === "gazeSample") {
       for (const listener of gazeListeners) {
@@ -167,23 +197,42 @@ function connect() {
   }
 
   setStats({ status: "connecting" });
+  console.log("WebSocket Request:", {
+    url: getWsUrl(),
+    message: { type: "connect" },
+  });
   socket = new WebSocket(getWsUrl());
 
   socket.addEventListener("open", () => {
+    console.log("WebSocket Response:", {
+      url: getWsUrl(),
+      message: { type: "open" },
+    });
     setStats({ status: "open" });
     send({ type: "getExperimentState", payload: {} });
+    if (wantsGazeSubscription) {
+      send({ type: "subscribeGazeData", payload: {} });
+    }
     startPingLoop();
   });
 
   socket.addEventListener("message", handleMessage);
 
   socket.addEventListener("close", () => {
+    console.log("WebSocket Response:", {
+      url: getWsUrl(),
+      message: { type: "close" },
+    });
     setStats({ status: "closed" });
     stopPingLoop();
     scheduleReconnect();
   });
 
   socket.addEventListener("error", () => {
+    console.log("WebSocket Response:", {
+      url: getWsUrl(),
+      message: { type: "error" },
+    });
     setStats({ status: "closed" });
   });
 }
@@ -191,9 +240,11 @@ function connect() {
 export function subscribeToGaze(listener: GazeListener) {
   gazeListeners.add(listener);
   connect();
+  syncGazeSubscription();
 
   return () => {
     gazeListeners.delete(listener);
+    syncGazeSubscription();
   };
 }
 
@@ -210,6 +261,7 @@ export function subscribeToConnectionStats(listener: StatsListener) {
 export function stopGazeSocket() {
   shouldReconnect = false;
   stopPingLoop();
+  wantsGazeSubscription = false;
 
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer);
