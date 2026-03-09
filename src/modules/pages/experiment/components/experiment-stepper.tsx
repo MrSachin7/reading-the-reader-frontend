@@ -21,92 +21,126 @@ import {
 } from "@/redux"
 import type { RootState } from "@/redux"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Stepper,
-  StepperHeader,
-  StepperIcon,
-  StepperItem,
-  StepperSeparator,
-} from "@/components/ui/stepper"
 import { EyetrackerSetup } from "./eyetracker-setup"
+import { CalibrationStep } from "./calibration-step"
 
 export type ExperimentStep = {
   value: number
   name: string
   label: string
+  description: string
   icon: LucideIcon
 }
 
 type ExperimentStepNavigationProps = {
   step: number
   onStepChange: (value: number) => void
+  completion: Record<number, boolean>
   steps: ExperimentStep[]
 }
 
 export function ExperimentStepNavigation({
   step,
   onStepChange,
+  completion,
   steps,
 }: ExperimentStepNavigationProps) {
   return (
-    <Stepper value={step} onChange={onStepChange} className="relative flex items-center">
-      {steps.map((stepItem, index) => {
-        const isLast = index === steps.length - 1
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Experiment flow</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight">Set up, register, calibrate.</h2>
+      </div>
+      {steps.map((stepItem) => {
         const Icon = stepItem.icon
         const isActive = step === stepItem.value
         const isCompleted = step > stepItem.value
+        const isLocked = step < stepItem.value
+        const stepStatus = completion[stepItem.value]
+          ? "Done"
+          : isActive
+            ? "Current"
+            : isLocked
+              ? "Locked"
+              : "Available"
 
         return (
-          <StepperItem
+          <button
             key={stepItem.value}
-            value={stepItem.value}
-            disabled={step < stepItem.value}
-            className="flex-1"
+            type="button"
+            disabled={isLocked}
+            onClick={() => {
+              if (!isLocked) {
+                onStepChange(stepItem.value)
+              }
+            }}
+            className={cn(
+              "w-full rounded-[1.5rem] border p-4 text-left transition-all",
+              isActive && "border-primary bg-primary/5 shadow-[0_12px_40px_rgba(15,23,42,0.06)]",
+              isCompleted && "border-emerald-300/60 bg-emerald-500/5",
+              !isActive && !isCompleted && "bg-card hover:border-primary/40 hover:bg-primary/5",
+              isLocked && "cursor-not-allowed opacity-55 hover:border-border hover:bg-card"
+            )}
           >
-            <StepperHeader className="flex w-full items-center">
-              <StepperIcon
+            <div className="flex items-start gap-4">
+              <div
                 className={cn(
-                  "relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  "flex size-12 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                   isActive
                     ? "border-primary bg-primary text-primary-foreground"
                     : isCompleted
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-neutral-300 bg-neutral-100 text-neutral-400"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-700"
+                      : "border-neutral-300 bg-neutral-100 text-neutral-500"
                 )}
               >
                 <Icon className="h-5 w-5" />
-              </StepperIcon>
-              <div className="ml-3 mr-2 min-w-0">
-                <p className="truncate text-sm font-semibold">{stepItem.label}</p>
-                <p className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-base font-semibold">{stepItem.label}</p>
+                  <Badge variant={isCompleted ? "secondary" : "outline"}>{stepStatus}</Badge>
+                </div>
+                <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   {stepItem.name}
                 </p>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{stepItem.description}</p>
               </div>
-              {!isLast ? (
-                <StepperSeparator
-                  className={cn(
-                    "mx-2 h-0.5 flex-1 transition-colors",
-                    isCompleted ? "bg-primary" : "bg-neutral-200"
-                  )}
-                />
-              ) : null}
-            </StepperHeader>
-          </StepperItem>
+            </div>
+          </button>
         )
       })}
-    </Stepper>
+    </div>
   )
 }
 
 const steps: ExperimentStep[] = [
-  { value: 0, name: "step1", label: "Choose eyetracker", icon: Crosshair },
-  { value: 1, name: "step2", label: "Participant info", icon: FileText },
-  { value: 2, name: "step3", label: "step3", icon: CheckCircle2 },
+  {
+    value: 0,
+    name: "step1",
+    label: "Choose eyetracker",
+    description: "Select the device and its licence so the session can talk to the tracker.",
+    icon: Crosshair,
+  },
+  {
+    value: 1,
+    name: "step2",
+    label: "Participant info",
+    description: "Capture the participant details used to identify and group the session.",
+    icon: FileText,
+  },
+  {
+    value: 2,
+    name: "step3",
+    label: "Calibration",
+    description: "Guide the participant in a full-screen workspace and estimate the local correction.",
+    icon: CheckCircle2,
+  },
 ]
 
 const participantSexOptions = [
@@ -438,48 +472,69 @@ export function ExperimentStepper() {
   }
 
   return (
-    <div className="w-full space-y-8">
-      <ExperimentStepNavigation step={step} onStepChange={setStep} steps={steps} />
-
-      {step === 0 ? (
-        <EyetrackerSetup
-          onCompletionChange={(isComplete) =>
-            setStepCompletion((prev) => ({ ...prev, 0: isComplete }))
-          }
-          onSubmittingChange={setIsStepSubmitting}
-          onSubmitRequestChange={(submitHandler) => {
-            stepSubmitHandlerRef.current = submitHandler
-          }}
+    <div className="grid gap-8 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <aside className="xl:sticky xl:top-24 xl:self-start">
+        <ExperimentStepNavigation
+          step={step}
+          onStepChange={setStep}
+          completion={stepCompletion}
+          steps={steps}
         />
-      ) : step === 1 ? (
-        <ParticipantInformationForm
-          onCompletionChange={(isComplete) =>
-            setStepCompletion((prev) => ({ ...prev, 1: isComplete }))
-          }
-          onSubmittingChange={setIsStepSubmitting}
-          onSubmitRequestChange={(submitHandler) => {
-            stepSubmitHandlerRef.current = submitHandler
-          }}
-        />
-      ) : (
-        <Card>
-          <CardContent className="pt-6 text-sm text-muted-foreground">
-            Content for {steps[step]?.name} will be added next.
-          </CardContent>
-        </Card>
-      )}
+      </aside>
 
-      <div className="flex w-full justify-between gap-4">
-        <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
-          Previous
-        </Button>
-        <Button
-          disabled={step === steps.length - 1 || !canAdvance}
-          onClick={handleNext}
-        >
-          Next
-        </Button>
-      </div>
+      <section className="space-y-6">
+        {step === 0 ? (
+          <EyetrackerSetup
+            onCompletionChange={(isComplete) =>
+              setStepCompletion((prev) => ({ ...prev, 0: isComplete }))
+            }
+            onSubmittingChange={setIsStepSubmitting}
+            onSubmitRequestChange={(submitHandler) => {
+              stepSubmitHandlerRef.current = submitHandler
+            }}
+          />
+        ) : step === 1 ? (
+          <ParticipantInformationForm
+            onCompletionChange={(isComplete) =>
+              setStepCompletion((prev) => ({ ...prev, 1: isComplete }))
+            }
+            onSubmittingChange={setIsStepSubmitting}
+            onSubmitRequestChange={(submitHandler) => {
+              stepSubmitHandlerRef.current = submitHandler
+            }}
+          />
+        ) : (
+          <CalibrationStep
+            onCompletionChange={(isComplete) =>
+              setStepCompletion((prev) => ({ ...prev, 2: isComplete }))
+            }
+            onSubmittingChange={setIsStepSubmitting}
+            onSubmitRequestChange={(submitHandler) => {
+              stepSubmitHandlerRef.current = submitHandler
+            }}
+          />
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border bg-card px-5 py-4">
+          <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
+            Previous
+          </Button>
+          {step < steps.length - 1 ? (
+            <Button
+              disabled={step === steps.length - 1 || !canAdvance}
+              onClick={handleNext}
+            >
+              Next
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {isCurrentStepComplete
+                ? "Calibration step complete."
+                : "Launch the full-screen workspace and either accept or skip the in-app pass."}
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

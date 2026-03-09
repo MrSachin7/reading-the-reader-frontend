@@ -17,9 +17,20 @@ type ExperimentStepTwoState = {
   lastSyncedFingerprint: string | null
 }
 
+type ExperimentStepThreeState = {
+  externalCalibrationCompleted: boolean
+  internalCalibrationStatus: "pending" | "skipped" | "completed"
+  lastAppliedAtUnixMs: number | null
+  lastQuality: "good" | "fair" | "poor" | "unknown" | null
+  lastAverageOffset: number | null
+  lastOffsetX: number | null
+  lastOffsetY: number | null
+}
+
 type ExperimentState = {
   stepOne: ExperimentStepOneState
   stepTwo: ExperimentStepTwoState
+  stepThree: ExperimentStepThreeState
 }
 
 const initialState: ExperimentState = {
@@ -37,6 +48,15 @@ const initialState: ExperimentState = {
     eyeCondition: "",
     readingProficiency: "",
     lastSyncedFingerprint: null,
+  },
+  stepThree: {
+    externalCalibrationCompleted: false,
+    internalCalibrationStatus: "pending",
+    lastAppliedAtUnixMs: null,
+    lastQuality: null,
+    lastAverageOffset: null,
+    lastOffsetX: null,
+    lastOffsetY: null,
   },
 }
 
@@ -83,6 +103,36 @@ const experimentSlice = createSlice({
     resetStepTwoState: (state) => {
       state.stepTwo = initialState.stepTwo
     },
+    setStepThreeExternalCalibrationCompleted: (state, action: PayloadAction<boolean>) => {
+      state.stepThree.externalCalibrationCompleted = action.payload
+    },
+    setStepThreeInternalCalibrationStatus: (
+      state,
+      action: PayloadAction<ExperimentStepThreeState["internalCalibrationStatus"]>
+    ) => {
+      state.stepThree.internalCalibrationStatus = action.payload
+    },
+    setStepThreeLastAppliedAtUnixMs: (state, action: PayloadAction<number | null>) => {
+      state.stepThree.lastAppliedAtUnixMs = action.payload
+    },
+    setStepThreeLastQuality: (
+      state,
+      action: PayloadAction<ExperimentStepThreeState["lastQuality"]>
+    ) => {
+      state.stepThree.lastQuality = action.payload
+    },
+    setStepThreeLastAverageOffset: (state, action: PayloadAction<number | null>) => {
+      state.stepThree.lastAverageOffset = action.payload
+    },
+    setStepThreeLastOffsetX: (state, action: PayloadAction<number | null>) => {
+      state.stepThree.lastOffsetX = action.payload
+    },
+    setStepThreeLastOffsetY: (state, action: PayloadAction<number | null>) => {
+      state.stepThree.lastOffsetY = action.payload
+    },
+    resetStepThreeState: (state) => {
+      state.stepThree = initialState.stepThree
+    },
   },
 })
 
@@ -100,6 +150,14 @@ export const {
   setStepTwoReadingProficiency,
   setStepTwoLastSyncedFingerprint,
   resetStepTwoState,
+  setStepThreeExternalCalibrationCompleted,
+  setStepThreeInternalCalibrationStatus,
+  setStepThreeLastAppliedAtUnixMs,
+  setStepThreeLastQuality,
+  setStepThreeLastAverageOffset,
+  setStepThreeLastOffsetX,
+  setStepThreeLastOffsetY,
+  resetStepThreeState,
 } = experimentSlice.actions
 
 export default experimentSlice.reducer

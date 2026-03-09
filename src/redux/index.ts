@@ -1,12 +1,22 @@
 export {
   baseApi,
+  calibrationApi,
   eyetrackerApi,
   participantApi,
+  useApplyCalibrationMutation,
   useGetEyetrackersQuery,
   useSelectEyetrackerMutation,
   useSaveParticipantMutation,
 } from "./api"
-export type { Eyetracker, SelectEyetrackerPayload, SaveParticipantPayload } from "./api"
+export type {
+  ApplyCalibrationPayload,
+  ApplyCalibrationResponse,
+  CalibrationPattern,
+  CalibrationPointPayload,
+  Eyetracker,
+  SelectEyetrackerPayload,
+  SaveParticipantPayload,
+} from "./api"
 export { useAppDispatch, useAppSelector, useAppStore } from "./hooks"
 export { ReduxProvider } from "./redux-provider"
 export { makeStore } from "./store"
@@ -24,4 +34,11 @@ export {
   setStepTwoName,
   setStepTwoReadingProficiency,
   setStepTwoSex,
+  setStepThreeExternalCalibrationCompleted,
+  setStepThreeInternalCalibrationStatus,
+  setStepThreeLastAppliedAtUnixMs,
+  setStepThreeLastAverageOffset,
+  setStepThreeLastOffsetX,
+  setStepThreeLastOffsetY,
+  setStepThreeLastQuality,
 } from "./slices/experiment-slice"
