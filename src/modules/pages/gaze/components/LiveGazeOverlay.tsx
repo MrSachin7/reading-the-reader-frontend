@@ -81,6 +81,7 @@ export function LiveGazeOverlay({
     }
   }, [resolvedSampleRateHz, resolvedStats, statusVariant]);
 
+
   return (
     <>
       <div

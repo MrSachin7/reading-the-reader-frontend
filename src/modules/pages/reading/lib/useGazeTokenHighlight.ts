@@ -15,281 +15,210 @@ type UseGazeTokenHighlightParams = {
   containerRef: RefObject<HTMLElement | null>;
 };
 
-type PendingLineSwitch = {
-  token: HTMLElement;
+type WordLayout = {
+  bottom: number;
+  centerX: number;
+  centerY: number;
+  element: HTMLElement;
+  height: number;
+  index: number;
+  left: number;
+  line: number;
+  right: number;
+  top: number;
+};
+
+type HighlightVariant = "primary" | "secondary";
+
+type FixationCandidate = {
+  index: number;
   startedAt: number;
 };
 
-const LINE_SWITCH_DELAY_MS = 90;
+const FIXATION_INITIAL_MS = 90;
+const FIXATION_SAME_LINE_MS = 70;
+const FIXATION_NEW_LINE_MS = 135;
 const POINT_STALE_AFTER_MS = 650;
 const CLEAR_HIGHLIGHT_AFTER_MS = 1500;
-const ACTIVE_TOKEN_STYLES: ReadonlyArray<readonly [string, string]> = [
-  ["background-color", "rgba(96, 165, 250, 0.24)"],
-  ["box-shadow", "0 0 0 1px rgba(96, 165, 250, 0.34)"],
+const PRIMARY_TOKEN_STYLES: ReadonlyArray<readonly [string, string]> = [
+  ["background-color", "rgba(96, 165, 250, 0.28)"],
+  ["box-shadow", "0 0 0 1px rgba(96, 165, 250, 0.38)"],
+];
+const SECONDARY_TOKEN_STYLES: ReadonlyArray<readonly [string, string]> = [
+  ["background-color", "rgba(147, 197, 253, 0.16)"],
 ];
 
-function getPointOwnerElement(node: Node | null) {
-  if (!node) {
-    return null;
-  }
-
-  return node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null;
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function getCaretElementFromPoint(x: number, y: number) {
-  const caretPositionFromPoint = (
-    document as Document & {
-      caretPositionFromPoint?: (x: number, y: number) => CaretPosition | null;
-    }
-  ).caretPositionFromPoint;
-  if (caretPositionFromPoint) {
-    const caret = caretPositionFromPoint.call(document, x, y);
-    const element = getPointOwnerElement(caret?.offsetNode ?? null);
-    if (element) {
-      return element;
-    }
+function getAxisDistance(position: number, start: number, end: number) {
+  if (position < start) {
+    return start - position;
   }
 
-  if ("caretRangeFromPoint" in document) {
-    const caretRangeFromPoint = (
-      document as Document & {
-        caretRangeFromPoint?: (x: number, y: number) => Range | null;
-      }
-    ).caretRangeFromPoint;
-    const range = caretRangeFromPoint?.call(document, x, y);
-    const element = getPointOwnerElement(range?.startContainer ?? null);
-    if (element) {
-      return element;
-    }
-  }
-
-  return null;
-}
-
-function getTokenElement(target: Element | null, container: HTMLElement) {
-  if (!target || !container.contains(target)) {
-    return null;
-  }
-
-  const token = target.closest<HTMLElement>("[data-token-id]");
-  if (!token || !container.contains(token)) {
-    return null;
-  }
-
-  return token;
-}
-
-function getPreferredSearchOrder(target: HTMLElement, x: number) {
-  const rect = target.getBoundingClientRect();
-  const midpoint = rect.left + rect.width / 2;
-  return x >= midpoint ? [1, -1] : [-1, 1];
-}
-
-function getTokenVerticalCenter(token: HTMLElement) {
-  const rect = token.getBoundingClientRect();
-  return rect.top + rect.height / 2;
-}
-
-function areTokensOnSameLine(first: HTMLElement, second: HTMLElement) {
-  const firstRect = first.getBoundingClientRect();
-  const secondRect = second.getBoundingClientRect();
-  const firstCenter = firstRect.top + firstRect.height / 2;
-  const secondCenter = secondRect.top + secondRect.height / 2;
-  const tolerance = Math.max(Math.min(firstRect.height, secondRect.height) * 0.75, 12);
-
-  return Math.abs(firstCenter - secondCenter) <= tolerance;
-}
-
-function getHorizontalDistanceToToken(x: number, token: HTMLElement) {
-  const rect = token.getBoundingClientRect();
-  if (x < rect.left) {
-    return rect.left - x;
-  }
-
-  if (x > rect.right) {
-    return x - rect.right;
+  if (position > end) {
+    return position - end;
   }
 
   return 0;
 }
 
-function getVerticalDistanceToToken(y: number, token: HTMLElement) {
-  const rect = token.getBoundingClientRect();
-  if (y < rect.top) {
-    return rect.top - y;
-  }
+function buildWordLayouts(container: HTMLElement) {
+  const elements = Array.from(
+    container.querySelectorAll<HTMLElement>("[data-token-id][data-token-kind='word']")
+  );
 
-  if (y > rect.bottom) {
-    return y - rect.bottom;
-  }
+  const layouts: WordLayout[] = [];
+  let currentLine = -1;
+  let currentLineCenterY = 0;
+  let currentLineHeight = 0;
 
-  return 0;
-}
-
-function findClosestWordToken(
-  target: HTMLElement,
-  x: number,
-  orderedTokens: HTMLElement[],
-  indexById: Map<string, number>
-) {
-  if (target.dataset.tokenKind === "word") {
-    return target;
-  }
-
-  const tokenId = target.dataset.tokenId;
-  if (!tokenId) {
-    return null;
-  }
-
-  const startIndex = indexById.get(tokenId);
-  if (startIndex === undefined) {
-    return null;
-  }
-
-  const directions = getPreferredSearchOrder(target, x);
-  for (const direction of directions) {
-    let index = startIndex + direction;
-    while (index >= 0 && index < orderedTokens.length) {
-      const candidate = orderedTokens[index];
-      if (candidate.dataset.tokenKind === "word") {
-        return candidate;
-      }
-      index += direction;
-    }
-  }
-
-  return null;
-}
-
-function findNearestWordOnLine(
-  activeToken: HTMLElement,
-  x: number,
-  orderedTokens: HTMLElement[],
-  indexById: Map<string, number>
-) {
-  const tokenId = activeToken.dataset.tokenId;
-  if (!tokenId) {
-    return activeToken;
-  }
-
-  const activeIndex = indexById.get(tokenId);
-  if (activeIndex === undefined) {
-    return activeToken;
-  }
-
-  const lineTokens: HTMLElement[] = [activeToken];
-
-  let index = activeIndex - 1;
-  while (index >= 0) {
-    const candidate = orderedTokens[index];
-    index -= 1;
-
-    if (candidate.dataset.tokenKind !== "word") {
+  for (const element of elements) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) {
       continue;
     }
 
-    if (!areTokensOnSameLine(candidate, activeToken)) {
-      break;
+    const centerY = rect.top + rect.height / 2;
+    const tolerance =
+      currentLine < 0
+        ? 0
+        : Math.max(Math.min(currentLineHeight, rect.height) * 0.75, 12);
+
+    if (currentLine < 0 || Math.abs(centerY - currentLineCenterY) > tolerance) {
+      currentLine += 1;
+      currentLineCenterY = centerY;
+      currentLineHeight = rect.height;
+    } else {
+      currentLineCenterY = (currentLineCenterY + centerY) / 2;
+      currentLineHeight = (currentLineHeight + rect.height) / 2;
     }
 
-    lineTokens.unshift(candidate);
+    layouts.push({
+      bottom: rect.bottom,
+      centerX: rect.left + rect.width / 2,
+      centerY,
+      element,
+      height: rect.height,
+      index: layouts.length,
+      left: rect.left,
+      line: currentLine,
+      right: rect.right,
+      top: rect.top,
+    });
   }
 
-  index = activeIndex + 1;
-  while (index < orderedTokens.length) {
-    const candidate = orderedTokens[index];
-    index += 1;
-
-    if (candidate.dataset.tokenKind !== "word") {
-      continue;
-    }
-
-    if (!areTokensOnSameLine(candidate, activeToken)) {
-      break;
-    }
-
-    lineTokens.push(candidate);
-  }
-
-  let bestToken = activeToken;
-  let bestDistance = Number.POSITIVE_INFINITY;
-
-  for (const candidate of lineTokens) {
-    const distance = getHorizontalDistanceToToken(x, candidate);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestToken = candidate;
-    }
-  }
-
-  return bestToken;
+  return layouts;
 }
 
-function findNearestWordByGeometry(
+function getFixationThreshold(
+  candidateIndex: number,
+  activeIndex: number | null,
+  layouts: WordLayout[]
+) {
+  if (activeIndex === null) {
+    return FIXATION_INITIAL_MS;
+  }
+
+  const activeLayout = layouts[activeIndex];
+  const candidateLayout = layouts[candidateIndex];
+  if (!activeLayout || !candidateLayout) {
+    return FIXATION_INITIAL_MS;
+  }
+
+  return activeLayout.line === candidateLayout.line
+    ? FIXATION_SAME_LINE_MS
+    : FIXATION_NEW_LINE_MS;
+}
+
+function getPhraseIndices(activeIndex: number, layouts: WordLayout[]) {
+  const activeLayout = layouts[activeIndex];
+  if (!activeLayout) {
+    return [];
+  }
+
+  const phraseIndices: number[] = [];
+  const previousLayout = layouts[activeIndex - 1];
+  const nextLayout = layouts[activeIndex + 1];
+
+  if (previousLayout && previousLayout.line === activeLayout.line) {
+    phraseIndices.push(previousLayout.index);
+  }
+
+  phraseIndices.push(activeLayout.index);
+
+  if (nextLayout && nextLayout.line === activeLayout.line) {
+    phraseIndices.push(nextLayout.index);
+  }
+
+  return phraseIndices;
+}
+
+function pickWordIndex(
+  layouts: WordLayout[],
   x: number,
   y: number,
-  orderedTokens: HTMLElement[],
-  preferredLineToken: HTMLElement | null
+  activeIndex: number | null
 ) {
-  let bestToken: HTMLElement | null = null;
+  if (layouts.length === 0) {
+    return null;
+  }
+
+  const preferredLine = activeIndex === null ? null : layouts[activeIndex]?.line ?? null;
+  let bestIndex: number | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
-  for (const candidate of orderedTokens) {
-    if (candidate.dataset.tokenKind !== "word") {
-      continue;
-    }
+  for (const layout of layouts) {
+    const horizontalDistance = getAxisDistance(x, layout.left, layout.right);
+    const verticalDistance = getAxisDistance(y, layout.top, layout.bottom);
+    let score =
+      verticalDistance * 8 +
+      horizontalDistance * 1.1 +
+      Math.abs(layout.centerX - x) * 0.08;
 
-    const horizontalDistance = getHorizontalDistanceToToken(x, candidate);
-    const verticalDistance = getVerticalDistanceToToken(y, candidate);
-    let score = horizontalDistance + verticalDistance * 5;
-
-    if (preferredLineToken && areTokensOnSameLine(candidate, preferredLineToken)) {
+    if (preferredLine !== null && layout.line === preferredLine) {
       score -= 18;
     }
 
     if (score < bestScore) {
       bestScore = score;
-      bestToken = candidate;
+      bestIndex = layout.index;
     }
   }
 
-  return bestToken;
+  return bestIndex;
 }
 
-function findWordTokenAtPoint(
-  x: number,
-  y: number,
-  container: HTMLElement,
-  orderedTokens: HTMLElement[],
-  indexById: Map<string, number>
-) {
-  const caretElement = getCaretElementFromPoint(x, y);
-  const caretToken = getTokenElement(caretElement, container);
-  if (caretToken) {
-    return findClosestWordToken(caretToken, x, orderedTokens, indexById);
+function clearStyles(element: HTMLElement) {
+  for (const [property] of PRIMARY_TOKEN_STYLES) {
+    element.style.removeProperty(property);
   }
 
-  for (const element of document.elementsFromPoint(x, y)) {
-    const token = getTokenElement(element, container);
-    if (token) {
-      return findClosestWordToken(token, x, orderedTokens, indexById);
-    }
+  for (const [property] of SECONDARY_TOKEN_STYLES) {
+    element.style.removeProperty(property);
   }
+}
 
-  return null;
+function applyStyles(element: HTMLElement, variant: HighlightVariant) {
+  const styles = variant === "primary" ? PRIMARY_TOKEN_STYLES : SECONDARY_TOKEN_STYLES;
+
+  for (const [property, value] of styles) {
+    element.style.setProperty(property, value);
+  }
 }
 
 export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightParams) {
   const { useLocalCalibration, lastOffsetX, lastOffsetY } = useAppSelector(
     (state) => state.experiment.stepThree
   );
-  const activeTokenRef = useRef<HTMLElement | null>(null);
-  const orderedTokensRef = useRef<HTMLElement[]>([]);
-  const tokenIndexByIdRef = useRef<Map<string, number>>(new Map());
+  const wordLayoutsRef = useRef<WordLayout[]>([]);
+  const activeWordIndexRef = useRef<number | null>(null);
+  const highlightedElementsRef = useRef<Map<HTMLElement, HighlightVariant>>(new Map());
+  const fixationCandidateRef = useRef<FixationCandidate | null>(null);
   const latestPointRef = useRef<GazePoint | null>(null);
-  const smoothedPointRef = useRef<GazePoint | null>(null);
+  const normalizedPointRef = useRef<GazePoint | null>(null);
   const lastValidPointAtRef = useRef(0);
-  const pendingLineSwitchRef = useRef<PendingLineSwitch | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -297,61 +226,106 @@ export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightPar
       return;
     }
 
-    const refreshTokens = () => {
-      const tokens = Array.from(container.querySelectorAll<HTMLElement>("[data-token-id]"));
-      orderedTokensRef.current = tokens;
-      tokenIndexByIdRef.current = new Map(
-        tokens
-          .map((token, index) => {
-            const tokenId = token.dataset.tokenId;
-            return tokenId ? ([tokenId, index] as const) : null;
-          })
-          .filter((entry): entry is readonly [string, number] => entry !== null)
-      );
-    };
+    let refreshFrameId = 0;
+    let renderFrameId = 0;
 
-    refreshTokens();
-
-    const observer = new MutationObserver(refreshTokens);
-    observer.observe(container, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      orderedTokensRef.current = [];
-      tokenIndexByIdRef.current.clear();
-    };
-  }, [containerRef]);
-
-  useEffect(() => {
-    const clearTokenStyles = (token: HTMLElement) => {
-      for (const [property] of ACTIVE_TOKEN_STYLES) {
-        token.style.removeProperty(property);
-      }
-    };
-
-    const applyTokenStyles = (token: HTMLElement) => {
-      for (const [property, value] of ACTIVE_TOKEN_STYLES) {
-        token.style.setProperty(property, value);
-      }
-    };
-
-    const setActiveToken = (nextToken: HTMLElement | null) => {
-      if (activeTokenRef.current === nextToken) {
+    const setActiveWord = (nextIndex: number | null, force = false) => {
+      if (!force && activeWordIndexRef.current === nextIndex) {
         return;
       }
 
-      if (activeTokenRef.current) {
-        clearTokenStyles(activeTokenRef.current);
-        delete activeTokenRef.current.dataset.gazeActive;
+      const nextHighlights = new Map<HTMLElement, HighlightVariant>();
+
+      if (nextIndex !== null) {
+        for (const phraseIndex of getPhraseIndices(nextIndex, wordLayoutsRef.current)) {
+          const layout = wordLayoutsRef.current[phraseIndex];
+          if (!layout) {
+            continue;
+          }
+
+          nextHighlights.set(
+            layout.element,
+            phraseIndex === nextIndex ? "primary" : "secondary"
+          );
+        }
       }
 
-      if (nextToken) {
-        nextToken.dataset.gazeActive = "true";
-        applyTokenStyles(nextToken);
+      for (const [element, previousVariant] of highlightedElementsRef.current) {
+        const nextVariant = nextHighlights.get(element);
+        if (!nextVariant || nextVariant !== previousVariant) {
+          clearStyles(element);
+          delete element.dataset.gazeActive;
+          delete element.dataset.gazePhrase;
+        }
       }
 
-      activeTokenRef.current = nextToken;
+      for (const [element, variant] of nextHighlights) {
+        const previousVariant = highlightedElementsRef.current.get(element);
+        if (!previousVariant || previousVariant !== variant) {
+          clearStyles(element);
+          applyStyles(element, variant);
+        }
+
+        element.dataset.gazePhrase = variant;
+        if (variant === "primary") {
+          element.dataset.gazeActive = "true";
+        } else {
+          delete element.dataset.gazeActive;
+        }
+      }
+
+      highlightedElementsRef.current = nextHighlights;
+      activeWordIndexRef.current = nextIndex;
     };
+
+    const refreshLayouts = () => {
+      wordLayoutsRef.current = buildWordLayouts(container);
+
+      if (activeWordIndexRef.current !== null) {
+        if (wordLayoutsRef.current[activeWordIndexRef.current]) {
+          setActiveWord(activeWordIndexRef.current, true);
+        } else {
+          fixationCandidateRef.current = null;
+          setActiveWord(null, true);
+        }
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (refreshFrameId !== 0) {
+        return;
+      }
+
+      refreshFrameId = window.requestAnimationFrame(() => {
+        refreshFrameId = 0;
+        refreshLayouts();
+      });
+    };
+
+    refreshLayouts();
+
+    const mutationObserver = new MutationObserver(scheduleRefresh);
+    mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    const resizeObserver = new ResizeObserver(scheduleRefresh);
+    resizeObserver.observe(container);
+    if (container.firstElementChild instanceof HTMLElement) {
+      resizeObserver.observe(container.firstElementChild);
+    }
+
+    const onScroll = () => {
+      scheduleRefresh();
+    };
+
+    const onResize = () => {
+      scheduleRefresh();
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
 
     const unsubscribeGaze = subscribeToGaze((sample) => {
       const nextPoint = applyGazeOffset(
@@ -368,129 +342,93 @@ export function useGazeTokenHighlight({ containerRef }: UseGazeTokenHighlightPar
       lastValidPointAtRef.current = performance.now();
     });
 
-    let frameId = 0;
-
     const render = (now: number) => {
-      const container = containerRef.current;
-      const activeToken =
-        activeTokenRef.current && container?.contains(activeTokenRef.current)
-          ? activeTokenRef.current
-          : null;
       const latestPoint = latestPointRef.current;
-      const lastPointAgeMs = latestPoint === null ? Number.POSITIVE_INFINITY : now - lastValidPointAtRef.current;
-      const hasFreshPoint = latestPoint !== null && lastPointAgeMs <= POINT_STALE_AFTER_MS;
-
-      if (!container || !latestPoint) {
-        smoothedPointRef.current = null;
-        pendingLineSwitchRef.current = null;
-        setActiveToken(null);
-        frameId = window.requestAnimationFrame(render);
+      if (!latestPoint) {
+        setActiveWord(null);
+        renderFrameId = window.requestAnimationFrame(render);
         return;
       }
 
-      if (!hasFreshPoint) {
-        if (lastPointAgeMs > CLEAR_HIGHLIGHT_AFTER_MS) {
-          smoothedPointRef.current = null;
-          pendingLineSwitchRef.current = null;
-          setActiveToken(null);
-        }
-
-        frameId = window.requestAnimationFrame(render);
+      const pointAgeMs = now - lastValidPointAtRef.current;
+      if (pointAgeMs > CLEAR_HIGHLIGHT_AFTER_MS) {
+        normalizedPointRef.current = null;
+        fixationCandidateRef.current = null;
+        setActiveWord(null);
+        renderFrameId = window.requestAnimationFrame(render);
         return;
       }
 
-      const smoothedPoint = normalizeGazePoint(smoothedPointRef.current, latestPoint);
-      smoothedPointRef.current = smoothedPoint;
-
-      const x = smoothedPoint.x * window.innerWidth;
-      const y = smoothedPoint.y * window.innerHeight;
-      const candidateToken =
-        findWordTokenAtPoint(
-          x,
-          y,
-          container,
-          orderedTokensRef.current,
-          tokenIndexByIdRef.current
-        ) ?? findNearestWordByGeometry(x, y, orderedTokensRef.current, activeToken);
-
-      let nextToken = candidateToken;
-
-      if (activeToken && candidateToken && !areTokensOnSameLine(activeToken, candidateToken)) {
-        const pendingLineSwitch = pendingLineSwitchRef.current;
-        const activeLineCenter = getTokenVerticalCenter(activeToken);
-        const candidateLineCenter = getTokenVerticalCenter(candidateToken);
-        const lineJumpDistance = Math.abs(candidateLineCenter - activeLineCenter);
-        const immediateSwitchThreshold = Math.max(
-          Math.min(
-            activeToken.getBoundingClientRect().height,
-            candidateToken.getBoundingClientRect().height
-          ) * 1.25,
-          26
-        );
-
-        if (lineJumpDistance < immediateSwitchThreshold) {
-          if (
-            !pendingLineSwitch ||
-            !pendingLineSwitch.token.isConnected ||
-            !areTokensOnSameLine(pendingLineSwitch.token, candidateToken)
-          ) {
-            pendingLineSwitchRef.current = {
-              token: candidateToken,
-              startedAt: now,
-            };
-          } else if (now - pendingLineSwitch.startedAt >= LINE_SWITCH_DELAY_MS) {
-            pendingLineSwitchRef.current = null;
-          }
-
-          if (pendingLineSwitchRef.current) {
-            nextToken =
-              findNearestWordByGeometry(x, y, orderedTokensRef.current, activeToken) ??
-              findNearestWordOnLine(
-                activeToken,
-                x,
-                orderedTokensRef.current,
-                tokenIndexByIdRef.current
-              ) ??
-              activeToken;
-          } else {
-            nextToken =
-              findNearestWordByGeometry(x, y, orderedTokensRef.current, candidateToken) ??
-              candidateToken;
-          }
-        } else {
-          pendingLineSwitchRef.current = null;
-          nextToken =
-            findNearestWordByGeometry(x, y, orderedTokensRef.current, candidateToken) ??
-            candidateToken;
-        }
-      } else if (candidateToken) {
-        pendingLineSwitchRef.current = null;
-        nextToken =
-          findNearestWordByGeometry(x, y, orderedTokensRef.current, candidateToken) ??
-          findNearestWordOnLine(
-            candidateToken,
-            x,
-            orderedTokensRef.current,
-            tokenIndexByIdRef.current
-          ) ??
-          candidateToken;
-      } else {
-        pendingLineSwitchRef.current = null;
-        nextToken = activeToken;
+      if (pointAgeMs > POINT_STALE_AFTER_MS) {
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
       }
 
-      setActiveToken(nextToken);
-      frameId = window.requestAnimationFrame(render);
+      const normalizedPoint = normalizeGazePoint(normalizedPointRef.current, latestPoint);
+      normalizedPointRef.current = normalizedPoint;
+
+      const x = clamp(normalizedPoint.x * window.innerWidth, 0, window.innerWidth);
+      const y = clamp(normalizedPoint.y * window.innerHeight, 0, window.innerHeight);
+
+      const candidateIndex = pickWordIndex(
+        wordLayoutsRef.current,
+        x,
+        y,
+        activeWordIndexRef.current
+      );
+
+      if (candidateIndex === null) {
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
+      }
+
+      if (candidateIndex === activeWordIndexRef.current) {
+        fixationCandidateRef.current = null;
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
+      }
+
+      const fixationCandidate = fixationCandidateRef.current;
+      if (!fixationCandidate || fixationCandidate.index !== candidateIndex) {
+        fixationCandidateRef.current = {
+          index: candidateIndex,
+          startedAt: now,
+        };
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
+      }
+
+      const fixationThreshold = getFixationThreshold(
+        candidateIndex,
+        activeWordIndexRef.current,
+        wordLayoutsRef.current
+      );
+
+      if (now - fixationCandidate.startedAt >= fixationThreshold) {
+        fixationCandidateRef.current = null;
+        setActiveWord(candidateIndex);
+      }
+
+      renderFrameId = window.requestAnimationFrame(render);
     };
 
-    frameId = window.requestAnimationFrame(render);
+    renderFrameId = window.requestAnimationFrame(render);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      if (refreshFrameId !== 0) {
+        window.cancelAnimationFrame(refreshFrameId);
+      }
+
+      window.cancelAnimationFrame(renderFrameId);
       unsubscribeGaze();
-      smoothedPointRef.current = null;
-      pendingLineSwitchRef.current = null;
-      setActiveToken(null);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      container.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      fixationCandidateRef.current = null;
+      normalizedPointRef.current = null;
+      setActiveWord(null, true);
+      wordLayoutsRef.current = [];
     };
   }, [containerRef, lastOffsetX, lastOffsetY, useLocalCalibration]);
 }
