@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader";
+import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay";
 import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
@@ -129,6 +130,12 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
 
   return (
     <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
+      <LiveGazeOverlay
+        statusVariant="compact"
+        hideMarkerWhenNoPoint
+        markerClassName="h-4 w-4 border-cyan-400 bg-cyan-500/60 shadow-[0_0_22px_rgba(0,220,255,0.72)]"
+      />
+
       <section
         className={
           isFocusMode
