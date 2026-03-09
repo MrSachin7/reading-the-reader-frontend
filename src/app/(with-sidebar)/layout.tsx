@@ -95,7 +95,7 @@ export default function WithSidebarLayout({
           </div>
         </header>
 
-        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4 md:p-8">
+        <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 p-4 md:p-8">
           {children}
         </main>
       </SidebarInset>
