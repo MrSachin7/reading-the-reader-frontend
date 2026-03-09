@@ -4,6 +4,7 @@ import { type RefObject, useCallback, useLayoutEffect, useRef } from "react";
 
 type UsePreserveReadingContextParams = {
   containerRef: RefObject<HTMLElement | null>;
+  contentRef: RefObject<HTMLElement | null>;
   enabled: boolean;
   interventionKey: string;
 };
@@ -28,6 +29,29 @@ function getTokenCenterY(token: HTMLElement) {
 
 function getTokenSelector(tokenId: string) {
   return `[data-token-id="${tokenId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
+}
+
+function setVerticalCompensation(content: HTMLElement, offsetY: number) {
+  if (Math.abs(offsetY) < 0.5) {
+    content.style.transform = "";
+    content.style.transformOrigin = "";
+    content.style.willChange = "";
+    return;
+  }
+
+  content.style.transform = `translateY(${offsetY}px)`;
+  content.style.transformOrigin = "center top";
+  content.style.willChange = "transform";
+}
+
+function clearVerticalCompensation(content: HTMLElement | null) {
+  if (!content) {
+    return;
+  }
+
+  content.style.transform = "";
+  content.style.transformOrigin = "";
+  content.style.willChange = "";
 }
 
 function captureSnapshot(container: HTMLElement): ContextSnapshot | null {
@@ -94,12 +118,15 @@ function captureSnapshot(container: HTMLElement): ContextSnapshot | null {
 
 function alignAnchor(
   container: HTMLElement,
+  content: HTMLElement,
   anchor: TokenAnchor
 ) {
   const token = container.querySelector<HTMLElement>(getTokenSelector(anchor.tokenId));
   if (!token) {
     return null;
   }
+
+  clearVerticalCompensation(content);
 
   const beforeCenterY = getTokenCenterY(token);
   const beforeDeltaY = beforeCenterY - anchor.centerY;
@@ -108,14 +135,19 @@ function alignAnchor(
   container.scrollTop = Math.min(Math.max(nextScrollTop, 0), maxScrollTop);
 
   const afterCenterY = getTokenCenterY(token);
-  return Math.abs(afterCenterY - anchor.centerY);
+  const residualOffsetY = anchor.centerY - afterCenterY;
+  setVerticalCompensation(content, residualOffsetY);
+
+  const finalCenterY = getTokenCenterY(token);
+  return Math.abs(finalCenterY - anchor.centerY);
 }
 
 function restoreSnapshot(
   container: HTMLElement,
+  content: HTMLElement,
   snapshot: ContextSnapshot
 ) {
-  const primaryError = alignAnchor(container, snapshot.primaryAnchor);
+  const primaryError = alignAnchor(container, content, snapshot.primaryAnchor);
   if (
     primaryError !== null &&
     primaryError <= PRIMARY_ANCHOR_MAX_ERROR_PX
@@ -126,7 +158,7 @@ function restoreSnapshot(
   let bestFallback: { anchor: TokenAnchor; error: number } | null = null;
 
   for (const anchor of snapshot.fallbackAnchors) {
-    const error = alignAnchor(container, anchor);
+    const error = alignAnchor(container, content, anchor);
     if (error === null) {
       continue;
     }
@@ -137,20 +169,22 @@ function restoreSnapshot(
   }
 
   if (bestFallback && bestFallback.error <= FALLBACK_ANCHOR_MAX_ERROR_PX) {
-    alignAnchor(container, bestFallback.anchor);
+    alignAnchor(container, content, bestFallback.anchor);
     return true;
   }
 
   if (primaryError !== null) {
-    alignAnchor(container, snapshot.primaryAnchor);
+    alignAnchor(container, content, snapshot.primaryAnchor);
     return true;
   }
 
+  clearVerticalCompensation(content);
   return false;
 }
 
 export function usePreserveReadingContext({
   containerRef,
+  contentRef,
   enabled,
   interventionKey,
 }: UsePreserveReadingContextParams) {
@@ -168,7 +202,10 @@ export function usePreserveReadingContext({
 
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!enabled || !container) {
+    const content = contentRef.current;
+
+    if (!enabled || !container || !content) {
+      clearVerticalCompensation(content ?? null);
       previousInterventionKeyRef.current = interventionKey;
       return;
     }
@@ -197,11 +234,11 @@ export function usePreserveReadingContext({
     let frameC = 0;
 
     frameA = window.requestAnimationFrame(() => {
-      restoreSnapshot(container, snapshot);
+      restoreSnapshot(container, content, snapshot);
       frameB = window.requestAnimationFrame(() => {
-        restoreSnapshot(container, snapshot);
+        restoreSnapshot(container, content, snapshot);
         frameC = window.requestAnimationFrame(() => {
-          restoreSnapshot(container, snapshot);
+          restoreSnapshot(container, content, snapshot);
           latestSnapshotRef.current = captureSnapshot(container);
         });
       });
@@ -212,7 +249,7 @@ export function usePreserveReadingContext({
       window.cancelAnimationFrame(frameB);
       window.cancelAnimationFrame(frameC);
     };
-  }, [containerRef, enabled, interventionKey]);
+  }, [containerRef, contentRef, enabled, interventionKey]);
 
   return {
     captureContextAnchor,

@@ -34,6 +34,7 @@ export function ReaderShell({
   preserveContextOnIntervention = false,
 }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const {
@@ -62,6 +63,7 @@ export function ReaderShell({
   const estimatedTimeLabel = useMemo(() => formatEstimatedMinutes(words), [words]);
   const { captureContextAnchor } = usePreserveReadingContext({
     containerRef,
+    contentRef,
     enabled: preserveContextOnIntervention,
     interventionKey: `${fontSizePx}:${letterSpacingEm}:${wordSpacingEm}:${fontFamily}:${markdown}`,
   });
@@ -220,6 +222,7 @@ export function ReaderShell({
           style={{ msOverflowStyle: "none" }}
         >
           <div
+            ref={contentRef}
             className="mx-auto w-full"
             style={{
               maxWidth: "860px",
