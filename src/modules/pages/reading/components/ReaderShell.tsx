@@ -7,6 +7,7 @@ import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay
 import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
+import { usePreserveReadingContext } from "@/modules/pages/reading/lib/usePreserveReadingContext";
 import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
 import { useGazeTokenHighlight } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
@@ -15,6 +16,7 @@ import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettin
 type ReaderShellProps = {
   docId: string;
   markdown: string;
+  preserveContextOnIntervention?: boolean;
 };
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -26,17 +28,28 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 }
 
-export function ReaderShell({ docId, markdown }: ReaderShellProps) {
+export function ReaderShell({
+  docId,
+  markdown,
+  preserveContextOnIntervention = false,
+}: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const {
     fontSizePx,
-    lineWidthPx,
+    letterSpacingEm,
+    wordSpacingEm,
+    fontFamily,
+    fontFamilyLabel,
+    fontFamilyStyle,
     increaseFontSize,
     decreaseFontSize,
-    increaseLineWidth,
-    decreaseLineWidth,
+    increaseLetterSpacing,
+    decreaseLetterSpacing,
+    increaseWordSpacing,
+    decreaseWordSpacing,
+    cycleFontFamily,
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
@@ -47,6 +60,46 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
 
   const words = useMemo(() => countWords(markdown), [markdown]);
   const estimatedTimeLabel = useMemo(() => formatEstimatedMinutes(words), [words]);
+  const { captureContextAnchor } = usePreserveReadingContext({
+    containerRef,
+    enabled: preserveContextOnIntervention,
+    interventionKey: `${fontSizePx}:${letterSpacingEm}:${wordSpacingEm}:${fontFamily}:${markdown}`,
+  });
+
+  const handleIncreaseFontSize = useCallback(() => {
+    captureContextAnchor();
+    increaseFontSize();
+  }, [captureContextAnchor, increaseFontSize]);
+
+  const handleDecreaseFontSize = useCallback(() => {
+    captureContextAnchor();
+    decreaseFontSize();
+  }, [captureContextAnchor, decreaseFontSize]);
+
+  const handleIncreaseLetterSpacing = useCallback(() => {
+    captureContextAnchor();
+    increaseLetterSpacing();
+  }, [captureContextAnchor, increaseLetterSpacing]);
+
+  const handleDecreaseLetterSpacing = useCallback(() => {
+    captureContextAnchor();
+    decreaseLetterSpacing();
+  }, [captureContextAnchor, decreaseLetterSpacing]);
+
+  const handleIncreaseWordSpacing = useCallback(() => {
+    captureContextAnchor();
+    increaseWordSpacing();
+  }, [captureContextAnchor, increaseWordSpacing]);
+
+  const handleDecreaseWordSpacing = useCallback(() => {
+    captureContextAnchor();
+    decreaseWordSpacing();
+  }, [captureContextAnchor, decreaseWordSpacing]);
+
+  const handleCycleFontFamily = useCallback(() => {
+    captureContextAnchor();
+    cycleFontFamily();
+  }, [captureContextAnchor, cycleFontFamily]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -72,25 +125,13 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
 
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
-        increaseFontSize();
+        handleIncreaseFontSize();
         return;
       }
 
       if (event.key === "-") {
         event.preventDefault();
-        decreaseFontSize();
-        return;
-      }
-
-      if (event.key === "[") {
-        event.preventDefault();
-        decreaseLineWidth();
-        return;
-      }
-
-      if (event.key === "]") {
-        event.preventDefault();
-        increaseLineWidth();
+        handleDecreaseFontSize();
         return;
       }
 
@@ -99,7 +140,12 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
         resetToTop();
       }
     },
-    [decreaseFontSize, decreaseLineWidth, increaseFontSize, increaseLineWidth, isFocusMode, resetToTop]
+    [
+      handleDecreaseFontSize,
+      handleIncreaseFontSize,
+      isFocusMode,
+      resetToTop,
+    ]
   );
 
   useEffect(() => {
@@ -149,11 +195,16 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
           <ReadingToolbar
             estimatedTimeLabel={estimatedTimeLabel}
             fontSizePx={fontSizePx}
-            lineWidthPx={lineWidthPx}
-            onIncreaseFont={increaseFontSize}
-            onDecreaseFont={decreaseFontSize}
-            onIncreaseWidth={increaseLineWidth}
-            onDecreaseWidth={decreaseLineWidth}
+            letterSpacingEm={letterSpacingEm}
+            wordSpacingEm={wordSpacingEm}
+            fontFamilyLabel={fontFamilyLabel}
+            onIncreaseFont={handleIncreaseFontSize}
+            onDecreaseFont={handleDecreaseFontSize}
+            onIncreaseLetterSpacing={handleIncreaseLetterSpacing}
+            onDecreaseLetterSpacing={handleDecreaseLetterSpacing}
+            onIncreaseWordSpacing={handleIncreaseWordSpacing}
+            onDecreaseWordSpacing={handleDecreaseWordSpacing}
+            onCycleFontFamily={handleCycleFontFamily}
             onReset={resetToTop}
             onEnterFocus={() => setIsFocusMode(true)}
           />
@@ -170,7 +221,13 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
         >
           <div
             className="mx-auto w-full"
-            style={{ maxWidth: `${lineWidthPx}px`, fontSize: `${fontSizePx}px` }}
+            style={{
+              maxWidth: "680px",
+              fontSize: `${fontSizePx}px`,
+              letterSpacing: `${letterSpacingEm}em`,
+              wordSpacing: `${wordSpacingEm}em`,
+              fontFamily: fontFamilyStyle,
+            }}
           >
             <MarkdownReader blocks={tokenizedBlocks} />
           </div>
