@@ -215,14 +215,14 @@ export function ReaderShell({
           className={
             isFocusMode
               ? "flex-1 overflow-y-auto px-5 py-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-10 md:py-10"
-              : "flex-1 overflow-y-auto px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-8 md:py-8"
+              : "flex-1 overflow-y-auto px-2 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-3 md:py-5"
           }
           style={{ msOverflowStyle: "none" }}
         >
           <div
             className="mx-auto w-full"
             style={{
-              maxWidth: "680px",
+              maxWidth: "860px",
               fontSize: `${fontSizePx}px`,
               letterSpacing: `${letterSpacingEm}em`,
               wordSpacing: `${wordSpacingEm}em`,

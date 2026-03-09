@@ -18,8 +18,8 @@ type ContextSnapshot = {
   fallbackAnchors: TokenAnchor[];
 };
 
-const PRIMARY_ANCHOR_MAX_ERROR_PX = 10;
-const FALLBACK_ANCHOR_MAX_ERROR_PX = 18;
+const PRIMARY_ANCHOR_MAX_ERROR_PX = 8;
+const FALLBACK_ANCHOR_MAX_ERROR_PX = 16;
 
 function getTokenCenterY(token: HTMLElement) {
   const rect = token.getBoundingClientRect();
@@ -92,7 +92,10 @@ function captureSnapshot(container: HTMLElement): ContextSnapshot | null {
   };
 }
 
-function alignAnchor(container: HTMLElement, anchor: TokenAnchor) {
+function alignAnchor(
+  container: HTMLElement,
+  anchor: TokenAnchor
+) {
   const token = container.querySelector<HTMLElement>(getTokenSelector(anchor.tokenId));
   if (!token) {
     return null;
@@ -108,7 +111,10 @@ function alignAnchor(container: HTMLElement, anchor: TokenAnchor) {
   return Math.abs(afterCenterY - anchor.centerY);
 }
 
-function restoreSnapshot(container: HTMLElement, snapshot: ContextSnapshot) {
+function restoreSnapshot(
+  container: HTMLElement,
+  snapshot: ContextSnapshot
+) {
   const primaryError = alignAnchor(container, snapshot.primaryAnchor);
   if (
     primaryError !== null &&
@@ -188,18 +194,23 @@ export function usePreserveReadingContext({
 
     let frameA = 0;
     let frameB = 0;
+    let frameC = 0;
 
     frameA = window.requestAnimationFrame(() => {
       restoreSnapshot(container, snapshot);
       frameB = window.requestAnimationFrame(() => {
         restoreSnapshot(container, snapshot);
-        latestSnapshotRef.current = captureSnapshot(container);
+        frameC = window.requestAnimationFrame(() => {
+          restoreSnapshot(container, snapshot);
+          latestSnapshotRef.current = captureSnapshot(container);
+        });
       });
     });
 
     return () => {
       window.cancelAnimationFrame(frameA);
       window.cancelAnimationFrame(frameB);
+      window.cancelAnimationFrame(frameC);
     };
   }, [containerRef, enabled, interventionKey]);
 
