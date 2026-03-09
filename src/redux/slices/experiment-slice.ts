@@ -30,10 +30,17 @@ type ExperimentStepThreeState = {
   lastCalibrationStatus: string | null
 }
 
+type ReadingSessionState = {
+  source: "preset" | "custom"
+  customMarkdown: string
+  researcherQuestions: string
+}
+
 type ExperimentState = {
   stepOne: ExperimentStepOneState
   stepTwo: ExperimentStepTwoState
   stepThree: ExperimentStepThreeState
+  readingSession: ReadingSessionState
 }
 
 export type PersistedStepThreeCalibrationState = Pick<
@@ -72,6 +79,11 @@ const initialState: ExperimentState = {
     lastQuality: null,
     lastCalibrationSessionId: null,
     lastCalibrationStatus: null,
+  },
+  readingSession: {
+    source: "preset",
+    customMarkdown: "",
+    researcherQuestions: "",
   },
 }
 
@@ -230,6 +242,21 @@ const experimentSlice = createSlice({
     resetStepThreeState: (state) => {
       state.stepThree = initialState.stepThree
     },
+    setReadingSessionSource: (
+      state,
+      action: PayloadAction<ReadingSessionState["source"]>
+    ) => {
+      state.readingSession.source = action.payload
+    },
+    setReadingSessionCustomMarkdown: (state, action: PayloadAction<string>) => {
+      state.readingSession.customMarkdown = action.payload
+    },
+    setReadingSessionResearcherQuestions: (state, action: PayloadAction<string>) => {
+      state.readingSession.researcherQuestions = action.payload
+    },
+    resetReadingSessionState: (state) => {
+      state.readingSession = initialState.readingSession
+    },
   },
 })
 
@@ -259,6 +286,10 @@ export const {
   hydrateExperimentFromSession,
   hydrateStepThreeCalibrationState,
   resetStepThreeState,
+  setReadingSessionSource,
+  setReadingSessionCustomMarkdown,
+  setReadingSessionResearcherQuestions,
+  resetReadingSessionState,
 } = experimentSlice.actions
 
 export default experimentSlice.reducer
