@@ -138,7 +138,7 @@ const steps: ExperimentStep[] = [
     value: 2,
     name: "step3",
     label: "Calibration",
-    description: "Confirm that calibration has been completed in the Tobii software.",
+    description: "Run the backend Tobii screen-based calibration and verify it applied successfully.",
     icon: ScanEye,
   },
 ]
@@ -540,7 +540,7 @@ export function ExperimentStepper() {
             <p className="text-sm text-muted-foreground">
               {isCurrentStepComplete
                 ? "Calibration step complete."
-                : "Confirm that calibration has been completed in the Tobii software."}
+                : "Run the backend calibration flow before continuing."}
             </p>
           )}
         </div>

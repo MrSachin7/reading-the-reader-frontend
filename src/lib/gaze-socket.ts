@@ -1,3 +1,5 @@
+import type { CalibrationSessionSnapshot } from "@/lib/calibration"
+
 export interface GazeData {
   deviceTimeStamp: number;
   leftEyeX: number;
@@ -25,6 +27,11 @@ type ServerEnvelope =
       payload: Record<string, unknown>;
     }
   | {
+      type: "calibrationStateChanged";
+      sentAtUnixMs: number;
+      payload: CalibrationSessionSnapshot;
+    }
+  | {
       type: "error";
       sentAtUnixMs: number;
       payload: { message: string };
@@ -45,9 +52,11 @@ export interface ConnectionStats {
 
 type GazeListener = (data: GazeData) => void;
 type StatsListener = (stats: ConnectionStats) => void;
+type CalibrationStateListener = (snapshot: CalibrationSessionSnapshot) => void;
 
 const gazeListeners = new Set<GazeListener>();
 const statsListeners = new Set<StatsListener>();
+const calibrationStateListeners = new Set<CalibrationStateListener>();
 
 let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
@@ -179,6 +188,13 @@ function handleMessage(raw: MessageEvent<string>) {
       return;
     }
 
+    if (message.type === "calibrationStateChanged") {
+      for (const listener of calibrationStateListeners) {
+        listener(message.payload);
+      }
+      return;
+    }
+
     if (message.type === "error") {
       console.error("WebSocket error payload:", message.payload.message);
     }
@@ -255,6 +271,15 @@ export function subscribeToConnectionStats(listener: StatsListener) {
 
   return () => {
     statsListeners.delete(listener);
+  };
+}
+
+export function subscribeToCalibrationState(listener: CalibrationStateListener) {
+  calibrationStateListeners.add(listener);
+  connect();
+
+  return () => {
+    calibrationStateListeners.delete(listener);
   };
 }
 

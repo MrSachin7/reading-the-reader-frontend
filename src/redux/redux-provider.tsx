@@ -35,9 +35,8 @@ export function ReduxProvider({ children }: { children: React.ReactNode }) {
         internalCalibrationStatus: stepThree.internalCalibrationStatus,
         lastAppliedAtUnixMs: stepThree.lastAppliedAtUnixMs,
         lastQuality: stepThree.lastQuality,
-        lastAverageOffset: stepThree.lastAverageOffset,
-        lastOffsetX: stepThree.lastOffsetX,
-        lastOffsetY: stepThree.lastOffsetY,
+        lastCalibrationSessionId: stepThree.lastCalibrationSessionId,
+        lastCalibrationStatus: stepThree.lastCalibrationStatus,
       }
 
       window.localStorage.setItem(STEP_THREE_STORAGE_KEY, JSON.stringify(persisted))

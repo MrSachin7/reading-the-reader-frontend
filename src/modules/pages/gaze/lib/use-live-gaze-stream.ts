@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 import { type ConnectionStats, subscribeToConnectionStats, subscribeToGaze } from "@/lib/gaze-socket"
-import { useAppSelector } from "@/redux"
-import { applyGazeOffset, calculateGazePoint, normalizeGazePoint, type GazePoint } from "./gaze-helpers"
+import { calculateGazePoint, normalizeGazePoint, type GazePoint } from "./gaze-helpers"
 
 type UseLiveGazeStreamResult = {
   rawPoint: GazePoint | null
@@ -22,11 +21,6 @@ export function useLiveGazeStream(
   options: UseLiveGazeStreamOptions = {}
 ): UseLiveGazeStreamResult {
   const shouldApplyLocalCalibration = options.applyLocalCalibration ?? true
-  const {
-    useLocalCalibration,
-    lastOffsetX,
-    lastOffsetY,
-  } = useAppSelector((state) => state.experiment.stepThree)
   const [rawPoint, setRawPoint] = useState<GazePoint | null>(null)
   const [smoothedPoint, setSmoothedPoint] = useState<GazePoint | null>(null)
   const [connectionStats, setConnectionStats] = useState<ConnectionStats | null>(null)
@@ -41,12 +35,7 @@ export function useLiveGazeStream(
 
   useEffect(() => {
     const unsubscribeGaze = subscribeToGaze((sample) => {
-      const nextPoint = applyGazeOffset(
-        calculateGazePoint(sample),
-        lastOffsetX,
-        lastOffsetY,
-        shouldApplyLocalCalibration && useLocalCalibration
-      )
+      const nextPoint = calculateGazePoint(sample)
       sampleCounterRef.current += 1
 
       if (!nextPoint) {
@@ -89,7 +78,7 @@ export function useLiveGazeStream(
       window.clearInterval(livenessTimer)
       window.cancelAnimationFrame(frameId)
     }
-  }, [lastOffsetX, lastOffsetY, shouldApplyLocalCalibration, useLocalCalibration])
+  }, [shouldApplyLocalCalibration])
 
   return {
     rawPoint,

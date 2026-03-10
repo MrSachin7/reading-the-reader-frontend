@@ -20,12 +20,11 @@ type ExperimentStepTwoState = {
 type ExperimentStepThreeState = {
   externalCalibrationCompleted: boolean
   useLocalCalibration: boolean
-  internalCalibrationStatus: "pending" | "skipped" | "completed"
+  internalCalibrationStatus: "pending" | "running" | "failed" | "completed"
   lastAppliedAtUnixMs: number | null
   lastQuality: "good" | "fair" | "poor" | "unknown" | null
-  lastAverageOffset: number | null
-  lastOffsetX: number | null
-  lastOffsetY: number | null
+  lastCalibrationSessionId: string | null
+  lastCalibrationStatus: string | null
 }
 
 type ExperimentState = {
@@ -40,9 +39,8 @@ export type PersistedStepThreeCalibrationState = Pick<
   | "internalCalibrationStatus"
   | "lastAppliedAtUnixMs"
   | "lastQuality"
-  | "lastAverageOffset"
-  | "lastOffsetX"
-  | "lastOffsetY"
+  | "lastCalibrationSessionId"
+  | "lastCalibrationStatus"
 >
 
 const initialState: ExperimentState = {
@@ -67,9 +65,8 @@ const initialState: ExperimentState = {
     internalCalibrationStatus: "pending",
     lastAppliedAtUnixMs: null,
     lastQuality: null,
-    lastAverageOffset: null,
-    lastOffsetX: null,
-    lastOffsetY: null,
+    lastCalibrationSessionId: null,
+    lastCalibrationStatus: null,
   },
 }
 
@@ -137,14 +134,11 @@ const experimentSlice = createSlice({
     ) => {
       state.stepThree.lastQuality = action.payload
     },
-    setStepThreeLastAverageOffset: (state, action: PayloadAction<number | null>) => {
-      state.stepThree.lastAverageOffset = action.payload
+    setStepThreeLastCalibrationSessionId: (state, action: PayloadAction<string | null>) => {
+      state.stepThree.lastCalibrationSessionId = action.payload
     },
-    setStepThreeLastOffsetX: (state, action: PayloadAction<number | null>) => {
-      state.stepThree.lastOffsetX = action.payload
-    },
-    setStepThreeLastOffsetY: (state, action: PayloadAction<number | null>) => {
-      state.stepThree.lastOffsetY = action.payload
+    setStepThreeLastCalibrationStatus: (state, action: PayloadAction<string | null>) => {
+      state.stepThree.lastCalibrationStatus = action.payload
     },
     hydrateStepThreeCalibrationState: (
       state,
@@ -180,9 +174,8 @@ export const {
   setStepThreeInternalCalibrationStatus,
   setStepThreeLastAppliedAtUnixMs,
   setStepThreeLastQuality,
-  setStepThreeLastAverageOffset,
-  setStepThreeLastOffsetX,
-  setStepThreeLastOffsetY,
+  setStepThreeLastCalibrationSessionId,
+  setStepThreeLastCalibrationStatus,
   hydrateStepThreeCalibrationState,
   resetStepThreeState,
 } = experimentSlice.actions

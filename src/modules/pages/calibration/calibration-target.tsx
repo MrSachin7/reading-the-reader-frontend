@@ -1,6 +1,6 @@
 "use client"
 
-import type { CalibrationTargetPhase } from "./calibration-utils"
+export type CalibrationTargetPhase = "move" | "settle" | "hold" | "burst"
 
 type CalibrationTargetProps = {
   x: number

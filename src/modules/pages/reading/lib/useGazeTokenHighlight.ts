@@ -3,9 +3,7 @@
 import { type RefObject, useEffect, useRef } from "react";
 
 import { subscribeToGaze } from "@/lib/gaze-socket";
-import { useAppSelector } from "@/redux";
 import {
-  applyGazeOffset,
   calculateGazePoint,
   normalizeGazePoint,
   type GazePoint,
@@ -213,9 +211,6 @@ export function useGazeTokenHighlight({
   containerRef,
   highlightTokensBeingLookedAt = true,
 }: UseGazeTokenHighlightParams) {
-  const { useLocalCalibration, lastOffsetX, lastOffsetY } = useAppSelector(
-    (state) => state.experiment.stepThree
-  );
   const wordLayoutsRef = useRef<WordLayout[]>([]);
   const activeWordIndexRef = useRef<number | null>(null);
   const highlightedElementsRef = useRef<Map<HTMLElement, HighlightVariant>>(new Map());
@@ -335,12 +330,7 @@ export function useGazeTokenHighlight({
     window.addEventListener("resize", onResize);
 
     const unsubscribeGaze = subscribeToGaze((sample) => {
-      const nextPoint = applyGazeOffset(
-        calculateGazePoint(sample),
-        lastOffsetX,
-        lastOffsetY,
-        useLocalCalibration
-      );
+      const nextPoint = calculateGazePoint(sample);
       if (!nextPoint) {
         return;
       }
@@ -437,5 +427,5 @@ export function useGazeTokenHighlight({
       setActiveWord(null, true);
       wordLayoutsRef.current = [];
     };
-  }, [containerRef, highlightTokensBeingLookedAt, lastOffsetX, lastOffsetY, useLocalCalibration]);
+  }, [containerRef, highlightTokensBeingLookedAt]);
 }

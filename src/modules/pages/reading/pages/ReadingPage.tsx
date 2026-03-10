@@ -11,7 +11,7 @@ export function ReadingPage() {
       preserveContextOnIntervention = {true}
       highlightContext = {true}
       displayGazePosition = {false}
-      highlightTokensBeingLookedAt = {false}
+      highlightTokensBeingLookedAt = {true}
     />
   );
 }
