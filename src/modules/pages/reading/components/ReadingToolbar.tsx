@@ -5,52 +5,41 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  FONT_SIZE_OPTIONS,
-  LETTER_SPACING_OPTIONS,
-  WORD_SPACING_OPTIONS,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  LINE_WIDTH_MAX,
+  LINE_WIDTH_MIN,
 } from "@/modules/pages/reading/lib/useReadingSettings";
 
 type ReadingToolbarProps = {
   estimatedTimeLabel: string;
+  experimentSetupName: string | null;
   fontSizePx: number;
-  letterSpacingEm: number;
-  wordSpacingEm: number;
-  fontFamilyLabel: string;
+  lineWidthPx: number;
   onIncreaseFont: () => void;
   onDecreaseFont: () => void;
-  onIncreaseLetterSpacing: () => void;
-  onDecreaseLetterSpacing: () => void;
-  onIncreaseWordSpacing: () => void;
-  onDecreaseWordSpacing: () => void;
-  onCycleFontFamily: () => void;
+  onIncreaseWidth: () => void;
+  onDecreaseWidth: () => void;
   onReset: () => void;
   onEnterFocus: () => void;
 };
 
 export function ReadingToolbar({
   estimatedTimeLabel,
+  experimentSetupName,
   fontSizePx,
-  letterSpacingEm,
-  wordSpacingEm,
-  fontFamilyLabel,
+  lineWidthPx,
   onIncreaseFont,
   onDecreaseFont,
-  onIncreaseLetterSpacing,
-  onDecreaseLetterSpacing,
-  onIncreaseWordSpacing,
-  onDecreaseWordSpacing,
-  onCycleFontFamily,
+  onIncreaseWidth,
+  onDecreaseWidth,
   onReset,
   onEnterFocus,
 }: ReadingToolbarProps) {
-  const canDecreaseFont = fontSizePx > FONT_SIZE_OPTIONS[0];
-  const canIncreaseFont = fontSizePx < FONT_SIZE_OPTIONS[FONT_SIZE_OPTIONS.length - 1];
-  const canDecreaseLetterSpacing = letterSpacingEm > LETTER_SPACING_OPTIONS[0];
-  const canIncreaseLetterSpacing =
-    letterSpacingEm < LETTER_SPACING_OPTIONS[LETTER_SPACING_OPTIONS.length - 1];
-  const canDecreaseWordSpacing = wordSpacingEm > WORD_SPACING_OPTIONS[0];
-  const canIncreaseWordSpacing =
-    wordSpacingEm < WORD_SPACING_OPTIONS[WORD_SPACING_OPTIONS.length - 1];
+  const canDecreaseFont = fontSizePx > FONT_SIZE_MIN;
+  const canIncreaseFont = fontSizePx < FONT_SIZE_MAX;
+  const canDecreaseWidth = lineWidthPx > LINE_WIDTH_MIN;
+  const canIncreaseWidth = lineWidthPx < LINE_WIDTH_MAX;
 
   return (
     <div className="sticky top-0 z-20 border-b bg-card/95 px-4 py-3 backdrop-blur md:px-6">
@@ -62,6 +51,15 @@ export function ReadingToolbar({
         <Separator orientation="vertical" className="hidden h-6 md:block" />
 
         <p className="text-sm text-muted-foreground">{estimatedTimeLabel}</p>
+
+        {experimentSetupName ? (
+          <>
+            <Separator orientation="vertical" className="hidden h-6 md:block" />
+            <p className="text-sm text-muted-foreground">
+              Material: {experimentSetupName}
+            </p>
+          </>
+        ) : null}
 
         <Separator orientation="vertical" className="hidden h-6 md:block" />
 
@@ -91,53 +89,23 @@ export function ReadingToolbar({
           <Button
             variant="outline"
             size="xs"
-            onClick={onDecreaseLetterSpacing}
-            disabled={!canDecreaseLetterSpacing}
-            aria-label="Decrease letter spacing"
+            onClick={onDecreaseWidth}
+            disabled={!canDecreaseWidth}
+            aria-label="Decrease line width"
           >
-            T-
+            [
           </Button>
-          <span className="w-16 text-center text-xs text-muted-foreground">
-            {letterSpacingEm.toFixed(2)}em
-          </span>
+          <span className="w-16 text-center text-xs text-muted-foreground">{lineWidthPx}px</span>
           <Button
             variant="outline"
             size="xs"
-            onClick={onIncreaseLetterSpacing}
-            disabled={!canIncreaseLetterSpacing}
-            aria-label="Increase letter spacing"
+            onClick={onIncreaseWidth}
+            disabled={!canIncreaseWidth}
+            aria-label="Increase line width"
           >
-            T+
+            ]
           </Button>
         </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={onDecreaseWordSpacing}
-            disabled={!canDecreaseWordSpacing}
-            aria-label="Decrease word spacing"
-          >
-            W-
-          </Button>
-          <span className="w-16 text-center text-xs text-muted-foreground">
-            {wordSpacingEm.toFixed(2)}em
-          </span>
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={onIncreaseWordSpacing}
-            disabled={!canIncreaseWordSpacing}
-            aria-label="Increase word spacing"
-          >
-            W+
-          </Button>
-        </div>
-
-        <Button variant="outline" size="sm" onClick={onCycleFontFamily}>
-          {fontFamilyLabel}
-        </Button>
 
         <div className="ml-auto" />
 

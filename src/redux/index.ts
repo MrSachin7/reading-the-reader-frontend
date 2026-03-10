@@ -4,20 +4,32 @@ export {
   eyetrackerApi,
   experimentSessionApi,
   participantApi,
+  readingMaterialApi,
   useCancelCalibrationMutation,
   useCollectCalibrationPointMutation,
+  useCreateReadingMaterialSetupMutation,
   useFinishCalibrationMutation,
-  useGetExperimentSessionQuery,
   useGetCalibrationStateQuery,
   useGetEyetrackersQuery,
+  useGetExperimentSessionQuery,
+  useGetReadingMaterialSetupsQuery,
+  useLazyGetReadingMaterialSetupByIdQuery,
   useSelectEyetrackerMutation,
   useSaveParticipantMutation,
   useStartCalibrationMutation,
+  useUpdateReadingMaterialSetupMutation,
 } from "./api"
 export type {
+  ApplyCalibrationPayload,
+  ApplyCalibrationResponse,
+  CalibrationPattern,
+  CalibrationPointPayload,
+  CreateReadingMaterialSetupRequest,
   Eyetracker,
+  ReadingMaterialSetup,
   SelectEyetrackerPayload,
   SaveParticipantPayload,
+  UpdateReadingMaterialSetupRequest,
 } from "./api"
 export type { PersistedStepThreeCalibrationState } from "./slices/experiment-slice"
 export { useAppDispatch, useAppSelector, useAppStore } from "./hooks"
@@ -45,6 +57,9 @@ export {
   setStepThreeLastAppliedAtUnixMs,
   setStepThreeLastCalibrationSessionId,
   setStepThreeLastCalibrationStatus,
+  setStepThreeLastAverageOffset,
+  setStepThreeLastOffsetX,
+  setStepThreeLastOffsetY,
   setStepThreeLastQuality,
   hydrateExperimentFromSession,
   hydrateStepThreeCalibrationState,
@@ -52,4 +67,5 @@ export {
   setReadingSessionCustomMarkdown,
   setReadingSessionResearcherQuestions,
   setReadingSessionSource,
-  } from "./slices/experiment-slice"
+  setReadingSessionTitle,
+} from "./slices/experiment-slice"

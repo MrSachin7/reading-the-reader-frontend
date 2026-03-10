@@ -32,6 +32,7 @@ type ExperimentStepThreeState = {
 
 type ReadingSessionState = {
   source: "preset" | "custom"
+  title: string
   customMarkdown: string
   researcherQuestions: string
 }
@@ -82,6 +83,7 @@ const initialState: ExperimentState = {
   },
   readingSession: {
     source: "preset",
+    title: "Reading as Deliberate Attention",
     customMarkdown: "",
     researcherQuestions: "",
   },
@@ -248,6 +250,9 @@ const experimentSlice = createSlice({
     ) => {
       state.readingSession.source = action.payload
     },
+    setReadingSessionTitle: (state, action: PayloadAction<string>) => {
+      state.readingSession.title = action.payload
+    },
     setReadingSessionCustomMarkdown: (state, action: PayloadAction<string>) => {
       state.readingSession.customMarkdown = action.payload
     },
@@ -287,6 +292,7 @@ export const {
   hydrateStepThreeCalibrationState,
   resetStepThreeState,
   setReadingSessionSource,
+  setReadingSessionTitle,
   setReadingSessionCustomMarkdown,
   setReadingSessionResearcherQuestions,
   resetReadingSessionState,
