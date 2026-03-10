@@ -9,6 +9,7 @@ import {
   setStepOneLastSyncedFingerprint,
   setStepOneLicenceFileName,
   setStepOneOverwriteExistingLicence,
+  setStepOneSelectionConfirmed,
   setStepOneSaveLicence,
   setStepOneSerialNumber,
   useAppDispatch,
@@ -114,10 +115,15 @@ export function EyetrackerSetup({
   const hasSavedLicence = Boolean(selectedEyetracker?.hasSavedLicence)
   const canUploadNewLicense = !hasSavedLicence || overwriteExistingLicence
   const displayedLicenceFileName = licenceFile?.name ?? stepOneDraft.licenceFileName
-  const isComplete = Boolean(
-    selectedSerialNumber &&
-      (displayedLicenceFileName || (hasSavedLicence && !overwriteExistingLicence))
-  )
+  const currentFingerprint = JSON.stringify({
+    serialNumber: selectedSerialNumber ?? "",
+    overwriteExistingLicence: Boolean(overwriteExistingLicence),
+    saveLicence: Boolean(saveLicence),
+    licenceFileName: displayedLicenceFileName ?? null,
+  })
+  const isComplete =
+    stepOneDraft.selectionConfirmed ||
+    Boolean(selectedSerialNumber && (displayedLicenceFileName || (hasSavedLicence && !overwriteExistingLicence)))
 
   React.useEffect(() => {
     onCompletionChange?.(isComplete)
@@ -135,6 +141,15 @@ export function EyetrackerSetup({
       }
     }
   }, [])
+
+  React.useEffect(() => {
+    form.reset({
+      serialNumber: stepOneDraft.serialNumber,
+      overwriteExistingLicence: stepOneDraft.overwriteExistingLicence,
+      saveLicence: stepOneDraft.saveLicence,
+      licenceFile: null,
+    })
+  }, [form, stepOneDraft.lastSyncedFingerprint, stepOneDraft.selectionConfirmed])
 
   const handleReloadEyetrackers = () => {
     setIsReloadAnimating(true)
@@ -172,12 +187,27 @@ export function EyetrackerSetup({
     dispatch(setStepOneSaveLicence(Boolean(saveLicence)))
   }, [dispatch, saveLicence])
 
+  React.useEffect(() => {
+    if (
+      stepOneDraft.selectionConfirmed &&
+      stepOneDraft.lastSyncedFingerprint !== null &&
+      currentFingerprint !== stepOneDraft.lastSyncedFingerprint
+    ) {
+      dispatch(setStepOneSelectionConfirmed(false))
+    }
+  }, [
+    currentFingerprint,
+    dispatch,
+    stepOneDraft.lastSyncedFingerprint,
+    stepOneDraft.selectionConfirmed,
+  ])
+
   const submitSelection = React.useCallback(async () => {
     setSubmitError(null)
     const currentValues = form.getValues()
     const effectiveLicenceFileName =
       currentValues.licenceFile?.name ?? stepOneDraft.licenceFileName ?? null
-    const currentFingerprint = JSON.stringify({
+    const nextFingerprint = JSON.stringify({
       serialNumber: currentValues.serialNumber,
       overwriteExistingLicence: currentValues.overwriteExistingLicence,
       saveLicence: currentValues.saveLicence,
@@ -189,7 +219,7 @@ export function EyetrackerSetup({
       return false
     }
 
-    if (stepOneDraft.lastSyncedFingerprint === currentFingerprint) {
+    if (stepOneDraft.selectionConfirmed && stepOneDraft.lastSyncedFingerprint === nextFingerprint) {
       return true
     }
 
@@ -206,13 +236,22 @@ export function EyetrackerSetup({
         saveLicence: currentValues.saveLicence,
         licenceFile: currentValues.licenceFile,
       }).unwrap()
-      dispatch(setStepOneLastSyncedFingerprint(currentFingerprint))
+      dispatch(setStepOneLastSyncedFingerprint(nextFingerprint))
+      dispatch(setStepOneSelectionConfirmed(true))
       return true
     } catch (error) {
       setSubmitError(getApiErrorMessage(error))
       return false
     }
-  }, [dispatch, form, hasSavedLicence, selectEyetracker, stepOneDraft.lastSyncedFingerprint, stepOneDraft.licenceFileName])
+  }, [
+    dispatch,
+    form,
+    hasSavedLicence,
+    selectEyetracker,
+    stepOneDraft.lastSyncedFingerprint,
+    stepOneDraft.licenceFileName,
+    stepOneDraft.selectionConfirmed,
+  ])
 
   React.useEffect(() => {
     onSubmitRequestChange?.(submitSelection)

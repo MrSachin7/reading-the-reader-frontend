@@ -7,6 +7,7 @@ export {
   useGetCalibrationStateQuery,
   useStartCalibrationMutation,
 } from "./calibration-api"
+export { experimentSessionApi, useGetExperimentSessionQuery } from "./experiment-session-api"
 export { eyetrackerApi, useGetEyetrackersQuery, useSelectEyetrackerMutation } from "./eyetracker-api"
 export type { Eyetracker, SelectEyetrackerPayload } from "./eyetracker-api"
 export { participantApi, useSaveParticipantMutation } from "./participant-api"

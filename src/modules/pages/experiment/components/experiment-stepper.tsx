@@ -9,14 +9,17 @@ import * as z from "zod"
 
 import { cn } from "@/lib/utils"
 import {
+  hydrateExperimentFromSession,
   setStepTwoAge,
   setStepTwoEyeCondition,
   setStepTwoLastSyncedFingerprint,
   setStepTwoName,
+  setStepTwoParticipantConfirmed,
   setStepTwoReadingProficiency,
   setStepTwoSex,
   useAppDispatch,
   useAppSelector,
+  useGetExperimentSessionQuery,
   useSaveParticipantMutation,
 } from "@/redux"
 import type { RootState } from "@/redux"
@@ -209,6 +212,13 @@ function ParticipantInformationForm({
   const dispatch = useAppDispatch()
   const stepTwoDraft = useAppSelector((state: RootState) => state.experiment.stepTwo)
   const [saveParticipant, { isLoading: isSavingParticipant }] = useSaveParticipantMutation()
+  const currentFingerprint = JSON.stringify({
+    name: stepTwoDraft.name,
+    age: stepTwoDraft.age,
+    sex: stepTwoDraft.sex,
+    eyeCondition: stepTwoDraft.eyeCondition,
+    readingProficiency: stepTwoDraft.readingProficiency,
+  })
 
   const form = useForm<z.infer<typeof participantFormSchema>>({
     resolver: zodResolver(participantFormSchema),
@@ -233,13 +243,15 @@ function ParticipantInformationForm({
 
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
-  const isComplete = participantFormSchema.safeParse({
-    name: watchedName,
-    age: watchedAge,
-    sex: watchedSex,
-    eyeCondition: watchedEyeCondition,
-    readingProficiency: watchedReadingProficiency,
-  }).success
+  const isComplete =
+    stepTwoDraft.participantConfirmed ||
+    participantFormSchema.safeParse({
+      name: watchedName,
+      age: watchedAge,
+      sex: watchedSex,
+      eyeCondition: watchedEyeCondition,
+      readingProficiency: watchedReadingProficiency,
+    }).success
 
   React.useEffect(() => {
     dispatch(setStepTwoName(watchedName ?? ""))
@@ -261,6 +273,31 @@ function ParticipantInformationForm({
     dispatch(setStepTwoReadingProficiency(watchedReadingProficiency ?? ""))
   }, [dispatch, watchedReadingProficiency])
 
+  React.useEffect(() => {
+    form.reset({
+      name: stepTwoDraft.name,
+      age: stepTwoDraft.age,
+      sex: stepTwoDraft.sex,
+      eyeCondition: stepTwoDraft.eyeCondition,
+      readingProficiency: stepTwoDraft.readingProficiency,
+    })
+  }, [form, stepTwoDraft.lastSyncedFingerprint, stepTwoDraft.participantConfirmed])
+
+  React.useEffect(() => {
+    if (
+      stepTwoDraft.participantConfirmed &&
+      stepTwoDraft.lastSyncedFingerprint !== null &&
+      currentFingerprint !== stepTwoDraft.lastSyncedFingerprint
+    ) {
+      dispatch(setStepTwoParticipantConfirmed(false))
+    }
+  }, [
+    currentFingerprint,
+    dispatch,
+    stepTwoDraft.lastSyncedFingerprint,
+    stepTwoDraft.participantConfirmed,
+  ])
+
   const submitParticipantForm = React.useCallback(async () => {
     setSubmitError(null)
 
@@ -270,9 +307,9 @@ function ParticipantInformationForm({
     }
 
     const data = form.getValues()
-    const currentFingerprint = JSON.stringify(data)
+    const nextFingerprint = JSON.stringify(data)
 
-    if (stepTwoDraft.lastSyncedFingerprint === currentFingerprint) {
+    if (stepTwoDraft.participantConfirmed && stepTwoDraft.lastSyncedFingerprint === nextFingerprint) {
       return true
     }
 
@@ -284,13 +321,14 @@ function ParticipantInformationForm({
         existingEyeCondition: data.eyeCondition,
         readingProficiency: data.readingProficiency,
       }).unwrap()
-      dispatch(setStepTwoLastSyncedFingerprint(currentFingerprint))
+      dispatch(setStepTwoLastSyncedFingerprint(nextFingerprint))
+      dispatch(setStepTwoParticipantConfirmed(true))
       return true
     } catch (error) {
       setSubmitError(getApiErrorMessage(error))
       return false
     }
-  }, [dispatch, form, saveParticipant, stepTwoDraft.lastSyncedFingerprint])
+  }, [dispatch, form, saveParticipant, stepTwoDraft.lastSyncedFingerprint, stepTwoDraft.participantConfirmed])
 
   React.useEffect(() => {
     onCompletionChange?.(isComplete)
@@ -453,6 +491,8 @@ function ParticipantInformationForm({
 }
 
 export function ExperimentStepper() {
+  const dispatch = useAppDispatch()
+  const { data: experimentSession } = useGetExperimentSessionQuery()
   const [step, setStep] = React.useState(0)
   const [isStepSubmitting, setIsStepSubmitting] = React.useState(false)
   const [stepCompletion, setStepCompletion] = React.useState<Record<number, boolean>>({
@@ -464,6 +504,20 @@ export function ExperimentStepper() {
 
   const isCurrentStepComplete = stepCompletion[step] ?? false
   const canAdvance = isCurrentStepComplete && !isStepSubmitting
+
+  React.useEffect(() => {
+    if (!experimentSession) {
+      return
+    }
+
+    dispatch(hydrateExperimentFromSession(experimentSession))
+    setStepCompletion({
+      0: experimentSession.setup.eyeTrackerSetupCompleted,
+      1: experimentSession.setup.participantSetupCompleted,
+      2: experimentSession.setup.calibrationCompleted,
+    })
+    setStep(Math.min(Math.max(experimentSession.setup.currentStepIndex, 0), steps.length - 1))
+  }, [dispatch, experimentSession])
 
   const handleNext = async () => {
     if (step === steps.length - 1 || !canAdvance) {

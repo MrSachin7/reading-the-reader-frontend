@@ -10,7 +10,7 @@ export function ReadingPage() {
       markdown={MOCK_READING_MD}
       preserveContextOnIntervention = {true}
       highlightContext = {true}
-      displayGazePosition = {false}
+      displayGazePosition = {true}
       highlightTokensBeingLookedAt = {true}
     />
   );

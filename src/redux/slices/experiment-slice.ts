@@ -1,10 +1,12 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit"
+import type { ExperimentSessionSnapshot } from "@/lib/experiment-session"
 
 type ExperimentStepOneState = {
   serialNumber: string
   overwriteExistingLicence: boolean
   saveLicence: boolean
   licenceFileName: string | null
+  selectionConfirmed: boolean
   lastSyncedFingerprint: string | null
 }
 
@@ -14,6 +16,7 @@ type ExperimentStepTwoState = {
   sex: string
   eyeCondition: string
   readingProficiency: string
+  participantConfirmed: boolean
   lastSyncedFingerprint: string | null
 }
 
@@ -49,6 +52,7 @@ const initialState: ExperimentState = {
     overwriteExistingLicence: false,
     saveLicence: false,
     licenceFileName: null,
+    selectionConfirmed: false,
     lastSyncedFingerprint: null,
   },
   stepTwo: {
@@ -57,6 +61,7 @@ const initialState: ExperimentState = {
     sex: "",
     eyeCondition: "",
     readingProficiency: "",
+    participantConfirmed: false,
     lastSyncedFingerprint: null,
   },
   stepThree: {
@@ -86,6 +91,9 @@ const experimentSlice = createSlice({
     setStepOneLicenceFileName: (state, action: PayloadAction<string | null>) => {
       state.stepOne.licenceFileName = action.payload
     },
+    setStepOneSelectionConfirmed: (state, action: PayloadAction<boolean>) => {
+      state.stepOne.selectionConfirmed = action.payload
+    },
     setStepOneLastSyncedFingerprint: (state, action: PayloadAction<string | null>) => {
       state.stepOne.lastSyncedFingerprint = action.payload
     },
@@ -106,6 +114,9 @@ const experimentSlice = createSlice({
     },
     setStepTwoReadingProficiency: (state, action: PayloadAction<string>) => {
       state.stepTwo.readingProficiency = action.payload
+    },
+    setStepTwoParticipantConfirmed: (state, action: PayloadAction<boolean>) => {
+      state.stepTwo.participantConfirmed = action.payload
     },
     setStepTwoLastSyncedFingerprint: (state, action: PayloadAction<string | null>) => {
       state.stepTwo.lastSyncedFingerprint = action.payload
@@ -149,6 +160,73 @@ const experimentSlice = createSlice({
         ...action.payload,
       }
     },
+    hydrateExperimentFromSession: (
+      state,
+      action: PayloadAction<ExperimentSessionSnapshot>
+    ) => {
+      const session = action.payload
+      const participant = session.participant
+      const eyeTracker = session.eyeTrackerDevice
+      const calibration = session.calibration
+      const eyeTrackerFingerprint = eyeTracker
+        ? JSON.stringify({
+            serialNumber: eyeTracker.serialNumber,
+            overwriteExistingLicence: false,
+            saveLicence: false,
+            licenceFileName: null,
+          })
+        : null
+      const participantFingerprint = participant
+        ? JSON.stringify({
+            name: participant.name,
+            age: participant.age,
+            sex: participant.sex,
+            eyeCondition: participant.existingEyeCondition,
+            readingProficiency: participant.readingProficiency,
+          })
+        : null
+
+      state.stepOne = {
+        ...state.stepOne,
+        serialNumber: eyeTracker?.serialNumber ?? "",
+        overwriteExistingLicence: false,
+        saveLicence: false,
+        licenceFileName: null,
+        selectionConfirmed: session.setup.eyeTrackerSetupCompleted,
+        lastSyncedFingerprint: eyeTrackerFingerprint,
+      }
+
+      state.stepTwo = {
+        ...state.stepTwo,
+        name: participant?.name ?? "",
+        age: participant?.age ?? 18,
+        sex: participant?.sex ?? "",
+        eyeCondition: participant?.existingEyeCondition ?? "",
+        readingProficiency: participant?.readingProficiency ?? "",
+        participantConfirmed: session.setup.participantSetupCompleted,
+        lastSyncedFingerprint: participantFingerprint,
+      }
+
+      state.stepThree = {
+        ...state.stepThree,
+        externalCalibrationCompleted: session.setup.calibrationCompleted,
+        useLocalCalibration: false,
+        internalCalibrationStatus:
+          calibration.status === "completed"
+            ? "completed"
+            : calibration.status === "running"
+              ? "running"
+              : calibration.status === "failed" || calibration.status === "cancelled"
+                ? "failed"
+                : "pending",
+        lastAppliedAtUnixMs: session.setup.calibrationCompleted
+          ? calibration.completedAtUnixMs
+          : null,
+        lastQuality: session.setup.calibrationCompleted ? "unknown" : null,
+        lastCalibrationSessionId: calibration.sessionId,
+        lastCalibrationStatus: calibration.result?.status ?? calibration.status,
+      }
+    },
     resetStepThreeState: (state) => {
       state.stepThree = initialState.stepThree
     },
@@ -160,6 +238,7 @@ export const {
   setStepOneOverwriteExistingLicence,
   setStepOneSaveLicence,
   setStepOneLicenceFileName,
+  setStepOneSelectionConfirmed,
   setStepOneLastSyncedFingerprint,
   resetStepOneState,
   setStepTwoName,
@@ -167,6 +246,7 @@ export const {
   setStepTwoSex,
   setStepTwoEyeCondition,
   setStepTwoReadingProficiency,
+  setStepTwoParticipantConfirmed,
   setStepTwoLastSyncedFingerprint,
   resetStepTwoState,
   setStepThreeExternalCalibrationCompleted,
@@ -176,6 +256,7 @@ export const {
   setStepThreeLastQuality,
   setStepThreeLastCalibrationSessionId,
   setStepThreeLastCalibrationStatus,
+  hydrateExperimentFromSession,
   hydrateStepThreeCalibrationState,
   resetStepThreeState,
 } = experimentSlice.actions
