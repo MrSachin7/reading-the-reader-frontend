@@ -18,7 +18,7 @@ type ReaderShellProps = {
   markdown: string;
   preserveContextOnIntervention?: boolean;
   highlightContext?: boolean;
-  displayGazePositions?: boolean;
+  displayGazePosition?: boolean;
   highlightTokensBeingLookedAt?: boolean;
 };
 
@@ -36,7 +36,7 @@ export function ReaderShell({
   markdown,
   preserveContextOnIntervention = false,
   highlightContext = false,
-  displayGazePositions = true,
+  displayGazePosition = true,
   highlightTokensBeingLookedAt = true,
 }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,7 +187,7 @@ export function ReaderShell({
 
   return (
     <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
-      {displayGazePositions ? (
+      {displayGazePosition ? (
         <LiveGazeOverlay
           statusVariant="compact"
           hideMarkerWhenNoPoint
