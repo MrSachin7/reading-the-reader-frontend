@@ -8,6 +8,10 @@ type MarkdownReaderProps = {
   blocks: TokenizedBlock[];
 };
 
+function formatLixScore(score: number) {
+  return score.toFixed(1).replace(/\.0$/, "");
+}
+
 function renderToken(token: Token) {
   if (token.kind === "word") {
     return (
@@ -76,6 +80,11 @@ export function MarkdownReader({ blocks }: MarkdownReaderProps) {
                 className="mb-5 leading-[1.85]"
               >
                 {block.runs.map(renderRun)}
+                {block.lixScore !== null ? (
+                  <span className="ml-3 inline-flex rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 text-xs font-medium tracking-[0.02em] text-muted-foreground">
+                    LIX {formatLixScore(block.lixScore)}
+                  </span>
+                ) : null}
               </p>
             );
           case "bullet_list":

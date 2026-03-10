@@ -1,4 +1,5 @@
 import type { InlineNode, MdBlock, MdDoc } from "@/modules/pages/reading/lib/minimalMarkdown";
+import { calculateLix } from "@/modules/pages/reading/lib/readingMetrics";
 
 export type Token = {
   id: string;
@@ -13,15 +14,25 @@ export type TokenRun = {
 
 export type TokenizedBlock =
   | {
-      type: "h1" | "h2" | "paragraph";
+      type: "h1" | "h2";
       blockId: string;
       runs: TokenRun[];
+    }
+  | {
+      type: "paragraph";
+      blockId: string;
+      runs: TokenRun[];
+      lixScore: number | null;
     }
   | {
       type: "bullet_list";
       blockId: string;
       items: { runs: TokenRun[] }[];
     };
+
+function inlineNodesToText(inlines: InlineNode[]): string {
+  return inlines.map((inline) => inline.text).join("");
+}
 
 function tokenizeText(
   text: string,
@@ -96,6 +107,21 @@ function tokenizeBlock(block: MdBlock, docId: string, blockIndex: number): Token
           spaceIndexRef
         ),
       })),
+    };
+  }
+
+  if (block.type === "paragraph") {
+    return {
+      type: "paragraph",
+      blockId,
+      runs: inlineNodesToRuns(
+        block.inlines,
+        docId,
+        blockIndex,
+        wordIndexRef,
+        spaceIndexRef
+      ),
+      lixScore: calculateLix(inlineNodesToText(block.inlines)),
     };
   }
 
