@@ -3,23 +3,29 @@
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import type { LucideIcon } from "lucide-react"
-import { Crosshair, FileText, ScanEye } from "lucide-react"
+import { BookOpen, Crosshair, FileText, Plus, ScanEye } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
 
 import { cn } from "@/lib/utils"
 import {
   hydrateExperimentFromSession,
+  setReadingSessionSource,
+  setReadingSessionCustomMarkdown,
+  setReadingSessionResearcherQuestions,
+  setReadingSessionTitle,
   setStepTwoAge,
   setStepTwoEyeCondition,
   setStepTwoLastSyncedFingerprint,
   setStepTwoName,
-  setStepTwoParticipantConfirmed,
   setStepTwoReadingProficiency,
   setStepTwoSex,
   useAppDispatch,
   useAppSelector,
   useGetExperimentSessionQuery,
+  useGetReadingMaterialSetupsQuery,
+  useLazyGetReadingMaterialSetupByIdQuery,
   useSaveParticipantMutation,
 } from "@/redux"
 import type { RootState } from "@/redux"
@@ -30,6 +36,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  applyReadingPresentationSettings,
+  useReadingSettings,
+} from "@/modules/pages/reading/lib/useReadingSettings"
 import { EyetrackerSetup } from "./eyetracker-setup"
 import { CalibrationStep } from "./calibration-step"
 
@@ -58,7 +68,7 @@ export function ExperimentStepNavigation({
     <div className="space-y-3">
       <div>
         <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Experiment flow</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight">Set up, register, calibrate.</h2>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight">Set up, register, calibrate, choose content.</h2>
       </div>
       {steps.map((stepItem) => {
         const Icon = stepItem.icon
@@ -141,10 +151,56 @@ const steps: ExperimentStep[] = [
     value: 2,
     name: "step3",
     label: "Calibration",
-    description: "Run the backend Tobii screen-based calibration and verify it applied successfully.",
+    description: "Confirm that calibration has been completed in the Tobii software.",
     icon: ScanEye,
   },
+  {
+    value: 3,
+    name: "step4",
+    label: "Reading material",
+    description: "Choose the reading text and apply an experiment setup before starting.",
+    icon: BookOpen,
+  },
 ]
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  if (typeof error !== "object" || !error) {
+    return fallback
+  }
+
+  const errorRecord = error as {
+    data?: { message?: string; errors?: Record<string, string[]> }
+    message?: string
+    status?: number
+  }
+
+  const firstValidationError = errorRecord.data?.errors
+    ? Object.values(errorRecord.data.errors).flat()[0]
+    : null
+
+  if (firstValidationError) {
+    return firstValidationError
+  }
+
+  if (typeof errorRecord.data?.message === "string" && errorRecord.data.message.length > 0) {
+    return errorRecord.data.message
+  }
+
+  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
+    return errorRecord.message
+  }
+
+  return fallback
+}
+
+function getApiStatus(error: unknown) {
+  if (typeof error !== "object" || !error || !("status" in error)) {
+    return null
+  }
+
+  const status = (error as { status?: unknown }).status
+  return typeof status === "number" ? status : null
+}
 
 const participantSexOptions = [
   { value: "female", label: "Female" },
@@ -185,7 +241,7 @@ type ParticipantInformationFormProps = {
   onSubmittingChange?: (isSubmitting: boolean) => void
 }
 
-function getApiErrorMessage(error: unknown) {
+function getParticipantApiErrorMessage(error: unknown) {
   if (typeof error !== "object" || !error) {
     return "Failed to save participant. Please try again."
   }
@@ -212,13 +268,6 @@ function ParticipantInformationForm({
   const dispatch = useAppDispatch()
   const stepTwoDraft = useAppSelector((state: RootState) => state.experiment.stepTwo)
   const [saveParticipant, { isLoading: isSavingParticipant }] = useSaveParticipantMutation()
-  const currentFingerprint = JSON.stringify({
-    name: stepTwoDraft.name,
-    age: stepTwoDraft.age,
-    sex: stepTwoDraft.sex,
-    eyeCondition: stepTwoDraft.eyeCondition,
-    readingProficiency: stepTwoDraft.readingProficiency,
-  })
 
   const form = useForm<z.infer<typeof participantFormSchema>>({
     resolver: zodResolver(participantFormSchema),
@@ -243,15 +292,13 @@ function ParticipantInformationForm({
 
   const [submitError, setSubmitError] = React.useState<string | null>(null)
 
-  const isComplete =
-    stepTwoDraft.participantConfirmed ||
-    participantFormSchema.safeParse({
-      name: watchedName,
-      age: watchedAge,
-      sex: watchedSex,
-      eyeCondition: watchedEyeCondition,
-      readingProficiency: watchedReadingProficiency,
-    }).success
+  const isComplete = participantFormSchema.safeParse({
+    name: watchedName,
+    age: watchedAge,
+    sex: watchedSex,
+    eyeCondition: watchedEyeCondition,
+    readingProficiency: watchedReadingProficiency,
+  }).success
 
   React.useEffect(() => {
     dispatch(setStepTwoName(watchedName ?? ""))
@@ -273,31 +320,6 @@ function ParticipantInformationForm({
     dispatch(setStepTwoReadingProficiency(watchedReadingProficiency ?? ""))
   }, [dispatch, watchedReadingProficiency])
 
-  React.useEffect(() => {
-    form.reset({
-      name: stepTwoDraft.name,
-      age: stepTwoDraft.age,
-      sex: stepTwoDraft.sex,
-      eyeCondition: stepTwoDraft.eyeCondition,
-      readingProficiency: stepTwoDraft.readingProficiency,
-    })
-  }, [form, stepTwoDraft.lastSyncedFingerprint, stepTwoDraft.participantConfirmed])
-
-  React.useEffect(() => {
-    if (
-      stepTwoDraft.participantConfirmed &&
-      stepTwoDraft.lastSyncedFingerprint !== null &&
-      currentFingerprint !== stepTwoDraft.lastSyncedFingerprint
-    ) {
-      dispatch(setStepTwoParticipantConfirmed(false))
-    }
-  }, [
-    currentFingerprint,
-    dispatch,
-    stepTwoDraft.lastSyncedFingerprint,
-    stepTwoDraft.participantConfirmed,
-  ])
-
   const submitParticipantForm = React.useCallback(async () => {
     setSubmitError(null)
 
@@ -307,9 +329,9 @@ function ParticipantInformationForm({
     }
 
     const data = form.getValues()
-    const nextFingerprint = JSON.stringify(data)
+    const currentFingerprint = JSON.stringify(data)
 
-    if (stepTwoDraft.participantConfirmed && stepTwoDraft.lastSyncedFingerprint === nextFingerprint) {
+    if (stepTwoDraft.lastSyncedFingerprint === currentFingerprint) {
       return true
     }
 
@@ -321,14 +343,13 @@ function ParticipantInformationForm({
         existingEyeCondition: data.eyeCondition,
         readingProficiency: data.readingProficiency,
       }).unwrap()
-      dispatch(setStepTwoLastSyncedFingerprint(nextFingerprint))
-      dispatch(setStepTwoParticipantConfirmed(true))
+      dispatch(setStepTwoLastSyncedFingerprint(currentFingerprint))
       return true
     } catch (error) {
-      setSubmitError(getApiErrorMessage(error))
+      setSubmitError(getParticipantApiErrorMessage(error))
       return false
     }
-  }, [dispatch, form, saveParticipant, stepTwoDraft.lastSyncedFingerprint, stepTwoDraft.participantConfirmed])
+  }, [dispatch, form, saveParticipant, stepTwoDraft.lastSyncedFingerprint])
 
   React.useEffect(() => {
     onCompletionChange?.(isComplete)
@@ -490,8 +511,150 @@ function ParticipantInformationForm({
   )
 }
 
+type SessionContentStepProps = {
+  onCompletionChange?: (isComplete: boolean) => void
+}
+
+function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
+  const router = useRouter()
+  const dispatch = useAppDispatch()
+  const readingSession = useAppSelector((state: RootState) => state.experiment.readingSession)
+  const { data: materialSetups = [], isLoading: isLoadingMaterialSetups, refetch } =
+    useGetReadingMaterialSetupsQuery()
+  const [getReadingMaterialSetupById, { isFetching: isLoadingSelectedMaterial }] =
+    useLazyGetReadingMaterialSetupByIdQuery()
+  const { experimentSetupName, resetReadingSettings } = useReadingSettings()
+
+  const [selectionError, setSelectionError] = React.useState<string | null>(null)
+  const hasSelectedMaterial = readingSession.title.trim().length > 0
+
+  React.useEffect(() => {
+    onCompletionChange?.(hasSelectedMaterial)
+  }, [hasSelectedMaterial, onCompletionChange])
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="border-b pb-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Step 4</Badge>
+            <Badge variant="outline">Reading material</Badge>
+          </div>
+          <CardTitle className="mt-3 text-3xl tracking-tight">Choose the text and session setup.</CardTitle>
+          <CardDescription className="max-w-3xl text-base leading-7">
+            Pick a saved reading material setup or create a new one. Each card should already
+            bundle the reading text, questions, and experiment setup.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          {selectionError ? (
+            <Alert variant="destructive">
+              <AlertTitle>Selection issue</AlertTitle>
+              <AlertDescription>{selectionError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                resetReadingSettings()
+                dispatch(setReadingSessionSource("preset"))
+                dispatch(setReadingSessionTitle("Reading as Deliberate Attention"))
+                dispatch(setReadingSessionCustomMarkdown(""))
+                dispatch(setReadingSessionResearcherQuestions(""))
+              }}
+              className={cn(
+                "w-full rounded-2xl border p-5 text-left transition-colors",
+                "bg-card hover:border-primary/40 hover:bg-accent/30",
+                readingSession.source === "preset" && "border-primary bg-accent/50"
+              )}
+            >
+              <div className="space-y-3">
+                <div>
+                  <p className="text-base font-semibold">Default text</p>
+                  <p className="text-xs text-muted-foreground">Reading as Deliberate Attention</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Built-in fallback
+                </div>
+              </div>
+            </button>
+
+            {materialSetups.map((setup) => (
+              <button
+                key={setup.id}
+                type="button"
+                onClick={async () => {
+                  setSelectionError(null)
+
+                  try {
+                    const savedSetup = await getReadingMaterialSetupById(setup.id).unwrap()
+                    dispatch(setReadingSessionSource("custom"))
+                    dispatch(setReadingSessionTitle(savedSetup.title))
+                    dispatch(setReadingSessionCustomMarkdown(savedSetup.markdown))
+                    dispatch(setReadingSessionResearcherQuestions(savedSetup.researcherQuestions))
+                    applyReadingPresentationSettings(savedSetup)
+                  } catch (error) {
+                    if (getApiStatus(error) === 404) {
+                      setSelectionError("That saved reading material setup no longer exists in the backend.")
+                      void refetch()
+                      return
+                    }
+
+                    setSelectionError(getApiErrorMessage(error, "Could not load that reading material setup."))
+                  }
+                }}
+                disabled={isLoadingSelectedMaterial}
+                className={cn(
+                  "w-full rounded-2xl border p-5 text-left transition-colors",
+                  "bg-card hover:border-primary/40 hover:bg-accent/30",
+                  readingSession.title.trim() === setup.title &&
+                    experimentSetupName === setup.name &&
+                    "border-primary bg-accent/50"
+                )}
+              >
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-base font-semibold">{setup.name}</p>
+                    <p className="text-xs text-muted-foreground">{setup.title}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Saved quick option
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => router.push("/reading-material/setup")}
+              disabled={isLoadingMaterialSetups}
+              className="flex min-h-[170px] w-full flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 p-5 text-center transition-colors hover:border-primary/40 hover:bg-accent/30"
+            >
+              <Plus className="mb-3 h-6 w-6 text-muted-foreground" />
+              <p className="text-base font-semibold">Create new</p>
+            </button>
+          </div>
+
+          {hasSelectedMaterial ? (
+            <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              Selected: <span className="font-medium text-foreground">{readingSession.title}</span>
+              {" · "}
+              <span className="font-medium text-foreground">{experimentSetupName ?? "Default presentation"}</span>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 export function ExperimentStepper() {
   const dispatch = useAppDispatch()
+  const router = useRouter()
   const { data: experimentSession } = useGetExperimentSessionQuery()
   const [step, setStep] = React.useState(0)
   const [isStepSubmitting, setIsStepSubmitting] = React.useState(false)
@@ -499,6 +662,7 @@ export function ExperimentStepper() {
     0: false,
     1: false,
     2: false,
+    3: false,
   })
   const stepSubmitHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null)
 
@@ -515,6 +679,9 @@ export function ExperimentStepper() {
       0: experimentSession.setup.eyeTrackerSetupCompleted,
       1: experimentSession.setup.participantSetupCompleted,
       2: experimentSession.setup.calibrationCompleted,
+      3: Boolean(
+        (experimentSession.setup as Record<string, unknown>).readingMaterialSetupCompleted
+      ),
     })
     setStep(Math.min(Math.max(experimentSession.setup.currentStepIndex, 0), steps.length - 1))
   }, [dispatch, experimentSession])
@@ -567,7 +734,7 @@ export function ExperimentStepper() {
               stepSubmitHandlerRef.current = submitHandler
             }}
           />
-        ) : (
+        ) : step === 2 ? (
           <CalibrationStep
             onCompletionChange={(isComplete) =>
               setStepCompletion((prev) => ({ ...prev, 2: isComplete }))
@@ -576,6 +743,12 @@ export function ExperimentStepper() {
             onSubmitRequestChange={(submitHandler) => {
               stepSubmitHandlerRef.current = submitHandler
             }}
+          />
+        ) : (
+          <SessionContentStep
+            onCompletionChange={(isComplete) =>
+              setStepCompletion((prev) => ({ ...prev, 3: isComplete }))
+            }
           />
         )}
 
@@ -591,11 +764,12 @@ export function ExperimentStepper() {
               Next
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              {isCurrentStepComplete
-                ? "Calibration step complete."
-                : "Run the backend calibration flow before continuing."}
-            </p>
+            <Button
+              disabled={!isCurrentStepComplete}
+              onClick={() => router.push("/reading")}
+            >
+              Start reading session
+            </Button>
           )}
         </div>
       </section>

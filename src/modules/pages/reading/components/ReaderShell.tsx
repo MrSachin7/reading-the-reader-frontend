@@ -7,7 +7,6 @@ import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay
 import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
-import { usePreserveReadingContext } from "@/modules/pages/reading/lib/usePreserveReadingContext";
 import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
 import { useGazeTokenHighlight } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
@@ -16,11 +15,14 @@ import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettin
 type ReaderShellProps = {
   docId: string;
   markdown: string;
-  preserveContextOnIntervention?: boolean;
-  highlightContext?: boolean;
-  displayGazePosition?: boolean;
-  highlightTokensBeingLookedAt?: boolean;
 };
+
+const FONT_FAMILY_STYLES = {
+  geist: "var(--font-geist-sans)",
+  inter: "var(--font-inter)",
+  "space-grotesk": "var(--font-space-grotesk)",
+  merriweather: "var(--font-merriweather)",
+} as const;
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -31,84 +33,32 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 }
 
-export function ReaderShell({
-  docId,
-  markdown,
-  preserveContextOnIntervention = false,
-  highlightContext = false,
-  displayGazePosition = true,
-  highlightTokensBeingLookedAt = true,
-}: ReaderShellProps) {
+export function ReaderShell({ docId, markdown }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const {
-    fontSizePx,
-    letterSpacingEm,
-    wordSpacingEm,
     fontFamily,
-    fontFamilyLabel,
-    fontFamilyStyle,
+    fontSizePx,
+    lineWidthPx,
+    lineHeight,
+    letterSpacingEm,
+    experimentSetupName,
     increaseFontSize,
     decreaseFontSize,
-    increaseLetterSpacing,
-    decreaseLetterSpacing,
-    increaseWordSpacing,
-    decreaseWordSpacing,
-    cycleFontFamily,
+    increaseLineWidth,
+    decreaseLineWidth,
+    resetReadingSettings,
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
-  useGazeTokenHighlight({ containerRef, highlightTokensBeingLookedAt });
+  useGazeTokenHighlight({ containerRef });
 
   const parsedDoc = useMemo(() => parseMinimalMarkdown(markdown), [markdown]);
   const tokenizedBlocks = useMemo(() => tokenizeDocument(parsedDoc, docId), [docId, parsedDoc]);
 
   const words = useMemo(() => countWords(markdown), [markdown]);
   const estimatedTimeLabel = useMemo(() => formatEstimatedMinutes(words), [words]);
-  const { captureContextAnchor } = usePreserveReadingContext({
-    containerRef,
-    contentRef,
-    enabled: preserveContextOnIntervention,
-    highlightContext,
-    interventionKey: `${fontSizePx}:${letterSpacingEm}:${wordSpacingEm}:${fontFamily}:${markdown}`,
-  });
-
-  const handleIncreaseFontSize = useCallback(() => {
-    captureContextAnchor();
-    increaseFontSize();
-  }, [captureContextAnchor, increaseFontSize]);
-
-  const handleDecreaseFontSize = useCallback(() => {
-    captureContextAnchor();
-    decreaseFontSize();
-  }, [captureContextAnchor, decreaseFontSize]);
-
-  const handleIncreaseLetterSpacing = useCallback(() => {
-    captureContextAnchor();
-    increaseLetterSpacing();
-  }, [captureContextAnchor, increaseLetterSpacing]);
-
-  const handleDecreaseLetterSpacing = useCallback(() => {
-    captureContextAnchor();
-    decreaseLetterSpacing();
-  }, [captureContextAnchor, decreaseLetterSpacing]);
-
-  const handleIncreaseWordSpacing = useCallback(() => {
-    captureContextAnchor();
-    increaseWordSpacing();
-  }, [captureContextAnchor, increaseWordSpacing]);
-
-  const handleDecreaseWordSpacing = useCallback(() => {
-    captureContextAnchor();
-    decreaseWordSpacing();
-  }, [captureContextAnchor, decreaseWordSpacing]);
-
-  const handleCycleFontFamily = useCallback(() => {
-    captureContextAnchor();
-    cycleFontFamily();
-  }, [captureContextAnchor, cycleFontFamily]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -134,13 +84,25 @@ export function ReaderShell({
 
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
-        handleIncreaseFontSize();
+        increaseFontSize();
         return;
       }
 
       if (event.key === "-") {
         event.preventDefault();
-        handleDecreaseFontSize();
+        decreaseFontSize();
+        return;
+      }
+
+      if (event.key === "[") {
+        event.preventDefault();
+        decreaseLineWidth();
+        return;
+      }
+
+      if (event.key === "]") {
+        event.preventDefault();
+        increaseLineWidth();
         return;
       }
 
@@ -149,12 +111,7 @@ export function ReaderShell({
         resetToTop();
       }
     },
-    [
-      handleDecreaseFontSize,
-      handleIncreaseFontSize,
-      isFocusMode,
-      resetToTop,
-    ]
+    [decreaseFontSize, decreaseLineWidth, increaseFontSize, increaseLineWidth, isFocusMode, resetToTop]
   );
 
   useEffect(() => {
@@ -187,13 +144,11 @@ export function ReaderShell({
 
   return (
     <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
-      {displayGazePosition ? (
-        <LiveGazeOverlay
-          statusVariant="compact"
-          hideMarkerWhenNoPoint
-          markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
-        />
-      ) : null}
+      <LiveGazeOverlay
+        statusVariant="compact"
+        hideMarkerWhenNoPoint
+        markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
+      />
 
       <section
         className={
@@ -205,18 +160,17 @@ export function ReaderShell({
         {!isFocusMode ? (
           <ReadingToolbar
             estimatedTimeLabel={estimatedTimeLabel}
+            experimentSetupName={experimentSetupName}
             fontSizePx={fontSizePx}
-            letterSpacingEm={letterSpacingEm}
-            wordSpacingEm={wordSpacingEm}
-            fontFamilyLabel={fontFamilyLabel}
-            onIncreaseFont={handleIncreaseFontSize}
-            onDecreaseFont={handleDecreaseFontSize}
-            onIncreaseLetterSpacing={handleIncreaseLetterSpacing}
-            onDecreaseLetterSpacing={handleDecreaseLetterSpacing}
-            onIncreaseWordSpacing={handleIncreaseWordSpacing}
-            onDecreaseWordSpacing={handleDecreaseWordSpacing}
-            onCycleFontFamily={handleCycleFontFamily}
-            onReset={resetToTop}
+            lineWidthPx={lineWidthPx}
+            onIncreaseFont={increaseFontSize}
+            onDecreaseFont={decreaseFontSize}
+            onIncreaseWidth={increaseLineWidth}
+            onDecreaseWidth={decreaseLineWidth}
+            onReset={() => {
+              resetReadingSettings();
+              resetToTop();
+            }}
             onEnterFocus={() => setIsFocusMode(true)}
           />
         ) : null}
@@ -226,19 +180,18 @@ export function ReaderShell({
           className={
             isFocusMode
               ? "flex-1 overflow-y-auto px-5 py-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-10 md:py-10"
-              : "flex-1 overflow-y-auto px-2 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-3 md:py-5"
+              : "flex-1 overflow-y-auto px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-8 md:py-8"
           }
           style={{ msOverflowStyle: "none" }}
         >
           <div
-            ref={contentRef}
             className="mx-auto w-full"
             style={{
-              maxWidth: "860px",
+              maxWidth: `${lineWidthPx}px`,
               fontSize: `${fontSizePx}px`,
+              lineHeight,
               letterSpacing: `${letterSpacingEm}em`,
-              wordSpacing: `${wordSpacingEm}em`,
-              fontFamily: fontFamilyStyle,
+              fontFamily: FONT_FAMILY_STYLES[fontFamily],
             }}
           >
             <MarkdownReader blocks={tokenizedBlocks} />

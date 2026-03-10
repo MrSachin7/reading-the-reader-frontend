@@ -3,7 +3,10 @@
 import * as React from "react"
 import { Provider } from "react-redux"
 
-import { hydrateStepThreeCalibrationState, type PersistedStepThreeCalibrationState } from "@/redux"
+import {
+  hydrateStepThreeCalibrationState,
+  type PersistedStepThreeCalibrationState,
+} from "@/redux"
 import { makeStore } from "@/redux/store"
 
 const STEP_THREE_STORAGE_KEY = "reading-the-reader:step-three-calibration"
@@ -19,11 +22,10 @@ export function ReduxProvider({ children }: { children: React.ReactNode }) {
     try {
       const raw = window.localStorage.getItem(STEP_THREE_STORAGE_KEY)
       if (!raw) {
-        return
+      } else {
+        const parsed = JSON.parse(raw) as PersistedStepThreeCalibrationState
+        store.dispatch(hydrateStepThreeCalibrationState(parsed))
       }
-
-      const parsed = JSON.parse(raw) as PersistedStepThreeCalibrationState
-      store.dispatch(hydrateStepThreeCalibrationState(parsed))
     } catch {
       window.localStorage.removeItem(STEP_THREE_STORAGE_KEY)
     }

@@ -12,3 +12,15 @@ export { eyetrackerApi, useGetEyetrackersQuery, useSelectEyetrackerMutation } fr
 export type { Eyetracker, SelectEyetrackerPayload } from "./eyetracker-api"
 export { participantApi, useSaveParticipantMutation } from "./participant-api"
 export type { SaveParticipantPayload } from "./participant-api"
+export {
+  readingMaterialApi,
+  useCreateReadingMaterialSetupMutation,
+  useGetReadingMaterialSetupsQuery,
+  useLazyGetReadingMaterialSetupByIdQuery,
+  useUpdateReadingMaterialSetupMutation,
+} from "./reading-material-api"
+export type {
+  CreateReadingMaterialSetupRequest,
+  ReadingMaterialSetup,
+  UpdateReadingMaterialSetupRequest,
+} from "./reading-material-api"

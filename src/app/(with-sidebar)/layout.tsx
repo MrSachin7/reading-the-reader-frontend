@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Layers, ScanEye } from "lucide-react";
+import { BookOpen, Layers, NotebookPen, ScanEye } from "lucide-react";
 
 import { FontSelector } from "@/components/theme/font-selector";
 import { ModeToggle } from "@/components/theme/mode-toggle";
@@ -63,6 +63,14 @@ export default function WithSidebarLayout({
                     <Link href="/gaze">
                       <ScanEye />
                       <span>Gaze (No Shell)</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Reading Material Setup">
+                    <Link href="/reading-material/setup">
+                      <NotebookPen />
+                      <span>Reading Material Setup</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

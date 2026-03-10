@@ -77,7 +77,8 @@ export function MarkdownReader({ blocks }: MarkdownReaderProps) {
               <p
                 key={block.blockId}
                 data-block-id={block.blockId}
-                className="mb-5 leading-[1.85]"
+                className="mb-5"
+                style={{ lineHeight: "inherit" }}
               >
                 {block.runs.map(renderRun)}
                 {block.lixScore !== null ? (
@@ -92,7 +93,8 @@ export function MarkdownReader({ blocks }: MarkdownReaderProps) {
               <ul
                 key={block.blockId}
                 data-block-id={block.blockId}
-                className="mb-6 list-disc space-y-2 pl-8 leading-[1.85]"
+                className="mb-6 list-disc space-y-2 pl-8"
+                style={{ lineHeight: "inherit" }}
               >
                 {block.items.map((item, itemIndex) => (
                   <li key={`${block.blockId}:item:${itemIndex}`}>
