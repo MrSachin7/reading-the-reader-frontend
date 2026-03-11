@@ -7,6 +7,7 @@ import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay
 import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
+import { usePreserveReadingContext } from "@/modules/pages/reading/lib/usePreserveReadingContext";
 import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
 import { useGazeTokenHighlight } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
@@ -15,6 +16,10 @@ import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettin
 type ReaderShellProps = {
   docId: string;
   markdown: string;
+  preserveContextOnIntervention?: boolean;
+  highlightContext?: boolean;
+  displayGazePosition?: boolean;
+  highlightTokensBeingLookedAt?: boolean;
 };
 
 const FONT_FAMILY_STYLES = {
@@ -33,8 +38,16 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 }
 
-export function ReaderShell({ docId, markdown }: ReaderShellProps) {
+export function ReaderShell({
+  docId,
+  markdown,
+  preserveContextOnIntervention = false,
+  highlightContext = false,
+  displayGazePosition = true,
+  highlightTokensBeingLookedAt = true,
+}: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const {
@@ -52,13 +65,46 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
-  useGazeTokenHighlight({ containerRef });
+  useGazeTokenHighlight({ containerRef, highlightTokensBeingLookedAt });
 
   const parsedDoc = useMemo(() => parseMinimalMarkdown(markdown), [markdown]);
   const tokenizedBlocks = useMemo(() => tokenizeDocument(parsedDoc, docId), [docId, parsedDoc]);
 
   const words = useMemo(() => countWords(markdown), [markdown]);
   const estimatedTimeLabel = useMemo(() => formatEstimatedMinutes(words), [words]);
+  const { captureContextAnchor } = usePreserveReadingContext({
+    containerRef,
+    contentRef,
+    enabled: preserveContextOnIntervention,
+    highlightContext,
+    interventionKey: `${fontSizePx}:${lineWidthPx}:${lineHeight}:${letterSpacingEm}:${fontFamily}:${markdown}`,
+  });
+
+  const handleIncreaseFontSize = useCallback(() => {
+    captureContextAnchor();
+    increaseFontSize();
+  }, [captureContextAnchor, increaseFontSize]);
+
+  const handleDecreaseFontSize = useCallback(() => {
+    captureContextAnchor();
+    decreaseFontSize();
+  }, [captureContextAnchor, decreaseFontSize]);
+
+  const handleIncreaseLineWidth = useCallback(() => {
+    captureContextAnchor();
+    increaseLineWidth();
+  }, [captureContextAnchor, increaseLineWidth]);
+
+  const handleDecreaseLineWidth = useCallback(() => {
+    captureContextAnchor();
+    decreaseLineWidth();
+  }, [captureContextAnchor, decreaseLineWidth]);
+
+  const handleReset = useCallback(() => {
+    captureContextAnchor();
+    resetReadingSettings();
+    resetToTop();
+  }, [captureContextAnchor, resetReadingSettings, resetToTop]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -84,25 +130,25 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
 
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
-        increaseFontSize();
+        handleIncreaseFontSize();
         return;
       }
 
       if (event.key === "-") {
         event.preventDefault();
-        decreaseFontSize();
+        handleDecreaseFontSize();
         return;
       }
 
       if (event.key === "[") {
         event.preventDefault();
-        decreaseLineWidth();
+        handleDecreaseLineWidth();
         return;
       }
 
       if (event.key === "]") {
         event.preventDefault();
-        increaseLineWidth();
+        handleIncreaseLineWidth();
         return;
       }
 
@@ -111,7 +157,14 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
         resetToTop();
       }
     },
-    [decreaseFontSize, decreaseLineWidth, increaseFontSize, increaseLineWidth, isFocusMode, resetToTop]
+    [
+      handleDecreaseFontSize,
+      handleDecreaseLineWidth,
+      handleIncreaseFontSize,
+      handleIncreaseLineWidth,
+      isFocusMode,
+      resetToTop,
+    ]
   );
 
   useEffect(() => {
@@ -144,11 +197,13 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
 
   return (
     <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
-      <LiveGazeOverlay
-        statusVariant="compact"
-        hideMarkerWhenNoPoint
-        markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
-      />
+      {displayGazePosition ? (
+        <LiveGazeOverlay
+          statusVariant="compact"
+          hideMarkerWhenNoPoint
+          markerClassName="h-4 w-4 border-blue-400 bg-blue-500/60 shadow-[0_0_22px_rgba(96,165,250,0.68)]"
+        />
+      ) : null}
 
       <section
         className={
@@ -163,14 +218,11 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
             experimentSetupName={experimentSetupName}
             fontSizePx={fontSizePx}
             lineWidthPx={lineWidthPx}
-            onIncreaseFont={increaseFontSize}
-            onDecreaseFont={decreaseFontSize}
-            onIncreaseWidth={increaseLineWidth}
-            onDecreaseWidth={decreaseLineWidth}
-            onReset={() => {
-              resetReadingSettings();
-              resetToTop();
-            }}
+            onIncreaseFont={handleIncreaseFontSize}
+            onDecreaseFont={handleDecreaseFontSize}
+            onIncreaseWidth={handleIncreaseLineWidth}
+            onDecreaseWidth={handleDecreaseLineWidth}
+            onReset={handleReset}
             onEnterFocus={() => setIsFocusMode(true)}
           />
         ) : null}
@@ -185,6 +237,7 @@ export function ReaderShell({ docId, markdown }: ReaderShellProps) {
           style={{ msOverflowStyle: "none" }}
         >
           <div
+            ref={contentRef}
             className="mx-auto w-full"
             style={{
               maxWidth: `${lineWidthPx}px`,
