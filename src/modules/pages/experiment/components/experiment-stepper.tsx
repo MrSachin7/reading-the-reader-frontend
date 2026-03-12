@@ -665,7 +665,7 @@ export function ExperimentStepper() {
       await startExperimentSession().unwrap()
       router.push("/reading")
     } catch (error) {
-      setStartError(getApiErrorMessage(error, "Could not start the reading session."))
+      setStartError(getErrorMessage(error, "Could not start the reading session."))
     }
   }, [
     experimentSetupId,

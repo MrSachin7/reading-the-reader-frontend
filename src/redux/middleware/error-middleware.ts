@@ -33,11 +33,17 @@ function buildErrorTitle(action: UnknownAction) {
 }
 
 export const errorMiddleware: Middleware = () => (next) => (action) => {
-  if (isRejectedWithValue(action) || isRejected(action)) {
+  if (isRejectedWithValue(action)) {
     const normalizedError = normalizeApiError(
-      "payload" in action ? action.payload : action.error,
+      action.payload,
       buildErrorTitle(action)
     )
+
+    next(pushError(normalizedError))
+  }
+
+  if (isRejected(action)) {
+    const normalizedError = normalizeApiError(action.error, buildErrorTitle(action))
 
     next(pushError(normalizedError))
   }
