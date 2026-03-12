@@ -22,6 +22,13 @@ type ReaderShellProps = {
   highlightTokensBeingLookedAt?: boolean;
 };
 
+const FONT_FAMILY_STYLES = {
+  geist: "var(--font-geist-sans)",
+  inter: "var(--font-inter)",
+  "space-grotesk": "var(--font-space-grotesk)",
+  merriweather: "var(--font-merriweather)",
+} as const;
+
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -44,19 +51,17 @@ export function ReaderShell({
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const {
-    fontSizePx,
-    letterSpacingEm,
-    wordSpacingEm,
     fontFamily,
-    fontFamilyLabel,
-    fontFamilyStyle,
+    fontSizePx,
+    lineWidthPx,
+    lineHeight,
+    letterSpacingEm,
+    experimentSetupName,
     increaseFontSize,
     decreaseFontSize,
-    increaseLetterSpacing,
-    decreaseLetterSpacing,
-    increaseWordSpacing,
-    decreaseWordSpacing,
-    cycleFontFamily,
+    increaseLineWidth,
+    decreaseLineWidth,
+    resetReadingSettings,
   } = useReadingSettings();
 
   const { resetToTop } = useReadingProgress({ containerRef, docId });
@@ -72,7 +77,7 @@ export function ReaderShell({
     contentRef,
     enabled: preserveContextOnIntervention,
     highlightContext,
-    interventionKey: `${fontSizePx}:${letterSpacingEm}:${wordSpacingEm}:${fontFamily}:${markdown}`,
+    interventionKey: `${fontSizePx}:${lineWidthPx}:${lineHeight}:${letterSpacingEm}:${fontFamily}:${markdown}`,
   });
 
   const handleIncreaseFontSize = useCallback(() => {
@@ -85,30 +90,21 @@ export function ReaderShell({
     decreaseFontSize();
   }, [captureContextAnchor, decreaseFontSize]);
 
-  const handleIncreaseLetterSpacing = useCallback(() => {
+  const handleIncreaseLineWidth = useCallback(() => {
     captureContextAnchor();
-    increaseLetterSpacing();
-  }, [captureContextAnchor, increaseLetterSpacing]);
+    increaseLineWidth();
+  }, [captureContextAnchor, increaseLineWidth]);
 
-  const handleDecreaseLetterSpacing = useCallback(() => {
+  const handleDecreaseLineWidth = useCallback(() => {
     captureContextAnchor();
-    decreaseLetterSpacing();
-  }, [captureContextAnchor, decreaseLetterSpacing]);
+    decreaseLineWidth();
+  }, [captureContextAnchor, decreaseLineWidth]);
 
-  const handleIncreaseWordSpacing = useCallback(() => {
+  const handleReset = useCallback(() => {
     captureContextAnchor();
-    increaseWordSpacing();
-  }, [captureContextAnchor, increaseWordSpacing]);
-
-  const handleDecreaseWordSpacing = useCallback(() => {
-    captureContextAnchor();
-    decreaseWordSpacing();
-  }, [captureContextAnchor, decreaseWordSpacing]);
-
-  const handleCycleFontFamily = useCallback(() => {
-    captureContextAnchor();
-    cycleFontFamily();
-  }, [captureContextAnchor, cycleFontFamily]);
+    resetReadingSettings();
+    resetToTop();
+  }, [captureContextAnchor, resetReadingSettings, resetToTop]);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -144,6 +140,18 @@ export function ReaderShell({
         return;
       }
 
+      if (event.key === "[") {
+        event.preventDefault();
+        handleDecreaseLineWidth();
+        return;
+      }
+
+      if (event.key === "]") {
+        event.preventDefault();
+        handleIncreaseLineWidth();
+        return;
+      }
+
       if (event.key.toLowerCase() === "r") {
         event.preventDefault();
         resetToTop();
@@ -151,7 +159,9 @@ export function ReaderShell({
     },
     [
       handleDecreaseFontSize,
+      handleDecreaseLineWidth,
       handleIncreaseFontSize,
+      handleIncreaseLineWidth,
       isFocusMode,
       resetToTop,
     ]
@@ -205,18 +215,14 @@ export function ReaderShell({
         {!isFocusMode ? (
           <ReadingToolbar
             estimatedTimeLabel={estimatedTimeLabel}
+            experimentSetupName={experimentSetupName}
             fontSizePx={fontSizePx}
-            letterSpacingEm={letterSpacingEm}
-            wordSpacingEm={wordSpacingEm}
-            fontFamilyLabel={fontFamilyLabel}
+            lineWidthPx={lineWidthPx}
             onIncreaseFont={handleIncreaseFontSize}
             onDecreaseFont={handleDecreaseFontSize}
-            onIncreaseLetterSpacing={handleIncreaseLetterSpacing}
-            onDecreaseLetterSpacing={handleDecreaseLetterSpacing}
-            onIncreaseWordSpacing={handleIncreaseWordSpacing}
-            onDecreaseWordSpacing={handleDecreaseWordSpacing}
-            onCycleFontFamily={handleCycleFontFamily}
-            onReset={resetToTop}
+            onIncreaseWidth={handleIncreaseLineWidth}
+            onDecreaseWidth={handleDecreaseLineWidth}
+            onReset={handleReset}
             onEnterFocus={() => setIsFocusMode(true)}
           />
         ) : null}
@@ -226,7 +232,7 @@ export function ReaderShell({
           className={
             isFocusMode
               ? "flex-1 overflow-y-auto px-5 py-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-10 md:py-10"
-              : "flex-1 overflow-y-auto px-2 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-3 md:py-5"
+              : "flex-1 overflow-y-auto px-4 py-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:px-8 md:py-8"
           }
           style={{ msOverflowStyle: "none" }}
         >
@@ -234,11 +240,11 @@ export function ReaderShell({
             ref={contentRef}
             className="mx-auto w-full"
             style={{
-              maxWidth: "860px",
+              maxWidth: `${lineWidthPx}px`,
               fontSize: `${fontSizePx}px`,
+              lineHeight,
               letterSpacing: `${letterSpacingEm}em`,
-              wordSpacing: `${wordSpacingEm}em`,
-              fontFamily: fontFamilyStyle,
+              fontFamily: FONT_FAMILY_STYLES[fontFamily],
             }}
           >
             <MarkdownReader blocks={tokenizedBlocks} />

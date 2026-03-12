@@ -55,6 +55,6 @@ const loggingBaseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryE
 export const baseApi = createApi({
   reducerPath: "api",
   baseQuery: loggingBaseQuery,
-  tagTypes: ["Eyetracker", "Experiment"],
+  tagTypes: ["Eyetracker", "Experiment", "ReadingMaterialSetup"],
   endpoints: () => ({}),
 })
