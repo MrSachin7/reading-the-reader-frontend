@@ -201,6 +201,8 @@ const experimentSlice = createSlice({
         : null
       const calibrationApplied =
         session.setup.calibrationCompleted || calibration.result?.applied === true
+      const effectiveCalibrationApplied =
+        calibrationApplied || state.stepThree.externalCalibrationCompleted
 
       state.stepOne = {
         ...state.stepOne,
@@ -225,22 +227,31 @@ const experimentSlice = createSlice({
 
       state.stepThree = {
         ...state.stepThree,
-        externalCalibrationCompleted: calibrationApplied,
+        externalCalibrationCompleted: effectiveCalibrationApplied,
         useLocalCalibration: false,
         internalCalibrationStatus:
-          calibrationApplied
+          effectiveCalibrationApplied
             ? "completed"
             : calibration.status === "running"
               ? "running"
               : calibration.status === "failed" || calibration.status === "cancelled"
                 ? "failed"
                 : "pending",
-        lastAppliedAtUnixMs: calibrationApplied
-          ? calibration.completedAtUnixMs
-          : null,
-        lastQuality: calibrationApplied ? "unknown" : null,
-        lastCalibrationSessionId: calibration.sessionId,
-        lastCalibrationStatus: calibration.result?.status ?? calibration.status,
+        lastAppliedAtUnixMs:
+          calibrationApplied
+            ? calibration.completedAtUnixMs
+            : state.stepThree.lastAppliedAtUnixMs,
+        lastQuality:
+          effectiveCalibrationApplied
+            ? state.stepThree.lastQuality ?? "unknown"
+            : null,
+        lastCalibrationSessionId:
+          calibration.sessionId ?? state.stepThree.lastCalibrationSessionId,
+        lastCalibrationStatus:
+          calibration.result?.status ??
+          (calibration.status === "idle"
+            ? state.stepThree.lastCalibrationStatus
+            : calibration.status),
       }
     },
     resetStepThreeState: (state) => {
