@@ -89,9 +89,9 @@ export function ReadingPage() {
       presentation={presentation}
       experimentSetupName={title}
       preserveContextOnIntervention={true}
-      highlightContext={false}
-      displayGazePosition={false}
-      highlightTokensBeingLookedAt={false}
+      highlightContext={true}
+      displayGazePosition={true}
+      highlightTokensBeingLookedAt={true}
       showToolbar={false}
       showBackButton={false}
       showLixScores={false}

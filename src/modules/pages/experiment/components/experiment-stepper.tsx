@@ -688,6 +688,43 @@ export function ExperimentStepper() {
   const isCurrentStepComplete = stepCompletion[step] ?? false
   const canAdvance = isCurrentStepComplete && !isStepSubmitting
 
+  const setCompletionForStep = React.useCallback((stepIndex: number, isComplete: boolean) => {
+    setStepCompletion((prev) => {
+      if (prev[stepIndex] === isComplete) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [stepIndex]: isComplete,
+      }
+    })
+  }, [])
+  const handleStepZeroCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setCompletionForStep(0, isComplete)
+    },
+    [setCompletionForStep]
+  )
+  const handleStepOneCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setCompletionForStep(1, isComplete)
+    },
+    [setCompletionForStep]
+  )
+  const handleStepTwoCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setCompletionForStep(2, isComplete)
+    },
+    [setCompletionForStep]
+  )
+  const handleStepThreeCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setCompletionForStep(3, isComplete)
+    },
+    [setCompletionForStep]
+  )
+
   const handleStartReadingSession = React.useCallback(async () => {
     setStartError(null)
 
@@ -794,9 +831,7 @@ export function ExperimentStepper() {
       <section className="space-y-6">
         {step === 0 ? (
           <EyetrackerSetup
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 0: isComplete }))
-            }
+            onCompletionChange={handleStepZeroCompletionChange}
             onSubmittingChange={setIsStepSubmitting}
             onSubmitRequestChange={(submitHandler) => {
               stepSubmitHandlerRef.current = submitHandler
@@ -804,9 +839,7 @@ export function ExperimentStepper() {
           />
         ) : step === 1 ? (
           <ParticipantInformationForm
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 1: isComplete }))
-            }
+            onCompletionChange={handleStepOneCompletionChange}
             onSubmittingChange={setIsStepSubmitting}
             onSubmitRequestChange={(submitHandler) => {
               stepSubmitHandlerRef.current = submitHandler
@@ -814,9 +847,7 @@ export function ExperimentStepper() {
           />
         ) : step === 2 ? (
           <CalibrationStep
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 2: isComplete }))
-            }
+            onCompletionChange={handleStepTwoCompletionChange}
             onSubmittingChange={setIsStepSubmitting}
             onSubmitRequestChange={(submitHandler) => {
               stepSubmitHandlerRef.current = submitHandler
@@ -824,9 +855,7 @@ export function ExperimentStepper() {
           />
         ) : (
           <SessionContentStep
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 3: isComplete }))
-            }
+            onCompletionChange={handleStepThreeCompletionChange}
           />
         )}
 

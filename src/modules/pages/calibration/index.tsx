@@ -252,7 +252,7 @@ export default function CalibrationPage() {
     setPhase("running")
     setErrorMessage(null)
     setTargetPhase("move")
-    setStatusMessage("Entering Tobii calibration mode.")
+    setStatusMessage("Stopping gaze streaming and entering Tobii calibration mode.")
     dispatch(setStepThreeExternalCalibrationCompleted(false))
     dispatch(setStepThreeInternalCalibrationStatus("running"))
     dispatch(setStepThreeUseLocalCalibration(false))
