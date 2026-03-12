@@ -7,6 +7,7 @@ import {
   type ParticipantViewportSnapshot,
   type ReadingFocusSnapshot,
 } from "@/lib/experiment-session"
+import { reportAppError } from "@/redux/error-reporter"
 
 export interface GazeData {
   deviceTimeStamp: number;
@@ -367,9 +368,17 @@ function handleMessage(raw: MessageEvent<string>) {
 
     if (message.type === "error") {
       console.error("WebSocket error payload:", message.payload.message);
+      reportAppError(message.payload.message, {
+        title: "Realtime connection error",
+        source: "websocket",
+      })
     }
   } catch (error) {
     console.error("Failed to parse websocket message", error);
+    reportAppError(error, {
+      title: "Realtime message parse error",
+      source: "websocket",
+    })
   }
 }
 
@@ -425,6 +434,10 @@ function connect() {
       message: { type: "error" },
     });
     setStats({ status: "closed" });
+    reportAppError("The realtime connection encountered an error.", {
+      title: "Realtime connection error",
+      source: "websocket",
+    })
   });
 }
 
