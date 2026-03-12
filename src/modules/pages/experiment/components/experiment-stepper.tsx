@@ -27,6 +27,8 @@ import {
   useGetReadingMaterialSetupsQuery,
   useLazyGetReadingMaterialSetupByIdQuery,
   useSaveParticipantMutation,
+  useStartExperimentSessionMutation,
+  useUpsertReadingSessionMutation,
 } from "@/redux"
 import type { RootState } from "@/redux"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -40,6 +42,7 @@ import {
   applyReadingPresentationSettings,
   useReadingSettings,
 } from "@/modules/pages/reading/lib/useReadingSettings"
+import { MOCK_READING_MD } from "@/modules/pages/reading/content/mockReading"
 import { EyetrackerSetup } from "./eyetracker-setup"
 import { CalibrationStep } from "./calibration-step"
 
@@ -662,11 +665,18 @@ export function ExperimentStepper() {
   const dispatch = useAppDispatch()
   const router = useRouter()
   const stepThree = useAppSelector((state: RootState) => state.experiment.stepThree)
+  const readingSession = useAppSelector((state: RootState) => state.experiment.readingSession)
+  const { presentation, experimentSetupId } = useReadingSettings()
   const { data: experimentSession } = useGetExperimentSessionQuery(undefined, {
     refetchOnMountOrArgChange: true,
   })
+  const [upsertReadingSession, { isLoading: isSavingReadingSession }] =
+    useUpsertReadingSessionMutation()
+  const [startExperimentSession, { isLoading: isStartingExperimentSession }] =
+    useStartExperimentSessionMutation()
   const [step, setStep] = React.useState(0)
   const [isStepSubmitting, setIsStepSubmitting] = React.useState(false)
+  const [startError, setStartError] = React.useState<string | null>(null)
   const [stepCompletion, setStepCompletion] = React.useState<Record<number, boolean>>({
     0: false,
     1: false,
@@ -677,6 +687,56 @@ export function ExperimentStepper() {
 
   const isCurrentStepComplete = stepCompletion[step] ?? false
   const canAdvance = isCurrentStepComplete && !isStepSubmitting
+
+  const handleStartReadingSession = React.useCallback(async () => {
+    setStartError(null)
+
+    const title =
+      readingSession.title.trim().length > 0
+        ? readingSession.title.trim()
+        : "Reading as Deliberate Attention"
+    const markdown =
+      readingSession.source === "custom" && readingSession.customMarkdown.trim().length > 0
+        ? readingSession.customMarkdown
+        : MOCK_READING_MD
+    const documentId =
+      readingSession.source === "custom" && experimentSetupId
+        ? experimentSetupId
+        : "mock-reading-v1"
+
+    try {
+      await upsertReadingSession({
+        documentId,
+        title,
+        markdown,
+        sourceSetupId: readingSession.source === "custom" ? experimentSetupId : null,
+        fontFamily: presentation.fontFamily,
+        fontSizePx: presentation.fontSizePx,
+        lineWidthPx: presentation.lineWidthPx,
+        lineHeight: presentation.lineHeight,
+        letterSpacingEm: presentation.letterSpacingEm,
+        editableByResearcher: presentation.editableByExperimenter,
+      }).unwrap()
+      await startExperimentSession().unwrap()
+      router.push("/reading")
+    } catch (error) {
+      setStartError(getApiErrorMessage(error, "Could not start the reading session."))
+    }
+  }, [
+    experimentSetupId,
+    presentation.editableByExperimenter,
+    presentation.fontFamily,
+    presentation.fontSizePx,
+    presentation.letterSpacingEm,
+    presentation.lineHeight,
+    presentation.lineWidthPx,
+    readingSession.customMarkdown,
+    readingSession.source,
+    readingSession.title,
+    router,
+    startExperimentSession,
+    upsertReadingSession,
+  ])
 
   React.useEffect(() => {
     if (!experimentSession) {
@@ -770,6 +830,13 @@ export function ExperimentStepper() {
           />
         )}
 
+        {startError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not start</AlertTitle>
+            <AlertDescription>{startError}</AlertDescription>
+          </Alert>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.5rem] border bg-card px-5 py-4">
           <Button disabled={step === 0} onClick={() => setStep(step - 1)}>
             Previous
@@ -783,10 +850,12 @@ export function ExperimentStepper() {
             </Button>
           ) : (
             <Button
-              disabled={!isCurrentStepComplete}
-              onClick={() => router.push("/reading")}
+              disabled={!isCurrentStepComplete || isSavingReadingSession || isStartingExperimentSession}
+              onClick={() => void handleStartReadingSession()}
             >
-              Start reading session
+              {isSavingReadingSession || isStartingExperimentSession
+                ? "Starting session..."
+                : "Start reading session"}
             </Button>
           )}
         </div>

@@ -3,24 +3,32 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import type { FontTheme } from "@/hooks/use-font-theme";
+import {
+  applyReadingPresentationPatch,
+  DEFAULT_READING_PRESENTATION,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  FONT_SIZE_STEP,
+  LINE_WIDTH_MAX,
+  LINE_WIDTH_MIN,
+  LINE_WIDTH_STEP,
+  normalizeFontTheme,
+  type ReadingPresentationSettings,
+} from "@/modules/pages/reading/lib/readingPresentation";
 
-type ReadingPresentationSettings = {
+export {
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  FONT_SIZE_STEP,
+  LINE_WIDTH_MAX,
+  LINE_WIDTH_MIN,
+  LINE_WIDTH_STEP,
+} from "@/modules/pages/reading/lib/readingPresentation";
+
+type StoredReadingPresentationSettings = ReadingPresentationSettings & {
   id: string
   name: string
-  fontFamily: FontTheme
-  fontSizePx: number
-  lineWidthPx: number
-  lineHeight: number
-  letterSpacingEm: number
-  editableByExperimenter: boolean
 }
-
-export const FONT_SIZE_MIN = 14;
-export const FONT_SIZE_MAX = 28;
-export const FONT_SIZE_STEP = 2;
-export const LINE_WIDTH_MIN = 520;
-export const LINE_WIDTH_MAX = 920;
-export const LINE_WIDTH_STEP = 20;
 
 const FONT_SIZE_KEY = "reading:fontSizePx";
 const LINE_WIDTH_KEY = "reading:lineWidthPx";
@@ -30,13 +38,6 @@ const FONT_FAMILY_KEY = "reading:fontFamily";
 const EDITABLE_BY_EXPERIMENTER_KEY = "reading:editableByExperimenter";
 const EXPERIMENT_SETUP_ID_KEY = "reading:experimentSetupId";
 const EXPERIMENT_SETUP_NAME_KEY = "reading:experimentSetupName";
-
-const DEFAULT_FONT_SIZE = 18;
-const DEFAULT_LINE_WIDTH = 680;
-const DEFAULT_LINE_HEIGHT = 1.8;
-const DEFAULT_LETTER_SPACING = 0;
-const DEFAULT_FONT_FAMILY: FontTheme = "merriweather";
-const DEFAULT_EDITABLE_BY_EXPERIMENTER = true;
 
 const settingsListeners = new Set<() => void>();
 
@@ -133,37 +134,27 @@ function clampRange(value: number | undefined, min: number, max: number, fallbac
 }
 
 function getFontSizeSnapshot() {
-  return clampRange(readStoredNumber(FONT_SIZE_KEY), FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_FONT_SIZE);
+  return clampRange(readStoredNumber(FONT_SIZE_KEY), FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_READING_PRESENTATION.fontSizePx);
 }
 
 function getLineWidthSnapshot() {
-  return clampRange(readStoredNumber(LINE_WIDTH_KEY), LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_LINE_WIDTH);
+  return clampRange(readStoredNumber(LINE_WIDTH_KEY), LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_READING_PRESENTATION.lineWidthPx);
 }
 
 function getLineHeightSnapshot() {
-  return clampRange(readStoredNumber(LINE_HEIGHT_KEY), 1.2, 2.2, DEFAULT_LINE_HEIGHT);
+  return clampRange(readStoredNumber(LINE_HEIGHT_KEY), 1.2, 2.2, DEFAULT_READING_PRESENTATION.lineHeight);
 }
 
 function getLetterSpacingSnapshot() {
-  return clampRange(readStoredNumber(LETTER_SPACING_KEY), 0, 0.12, DEFAULT_LETTER_SPACING);
+  return clampRange(readStoredNumber(LETTER_SPACING_KEY), 0, 0.12, DEFAULT_READING_PRESENTATION.letterSpacingEm);
 }
 
 function getFontFamilySnapshot(): FontTheme {
-  const value = readStoredString(FONT_FAMILY_KEY);
-  if (
-    value === "geist" ||
-    value === "inter" ||
-    value === "space-grotesk" ||
-    value === "merriweather"
-  ) {
-    return value;
-  }
-
-  return DEFAULT_FONT_FAMILY;
+  return normalizeFontTheme(readStoredString(FONT_FAMILY_KEY));
 }
 
 function getEditableByExperimenterSnapshot() {
-  return readStoredBoolean(EDITABLE_BY_EXPERIMENTER_KEY) ?? DEFAULT_EDITABLE_BY_EXPERIMENTER;
+  return readStoredBoolean(EDITABLE_BY_EXPERIMENTER_KEY) ?? DEFAULT_READING_PRESENTATION.editableByExperimenter;
 }
 
 function getExperimentSetupIdSnapshot() {
@@ -174,7 +165,7 @@ function getExperimentSetupNameSnapshot() {
   return readStoredString(EXPERIMENT_SETUP_NAME_KEY) ?? null;
 }
 
-export function applyReadingPresentationSettings(setup: ReadingPresentationSettings) {
+export function applyReadingPresentationSettings(setup: StoredReadingPresentationSettings) {
   writeStoredValue(FONT_SIZE_KEY, String(setup.fontSizePx));
   writeStoredValue(LINE_WIDTH_KEY, String(setup.lineWidthPx));
   writeStoredValue(LINE_HEIGHT_KEY, String(setup.lineHeight));
@@ -195,32 +186,32 @@ export function useReadingSettings() {
   const fontSizePx = useSyncExternalStore(
     subscribeToReadingSettings,
     getFontSizeSnapshot,
-    () => DEFAULT_FONT_SIZE
+    () => DEFAULT_READING_PRESENTATION.fontSizePx
   );
   const lineWidthPx = useSyncExternalStore(
     subscribeToReadingSettings,
     getLineWidthSnapshot,
-    () => DEFAULT_LINE_WIDTH
+    () => DEFAULT_READING_PRESENTATION.lineWidthPx
   );
   const lineHeight = useSyncExternalStore(
     subscribeToReadingSettings,
     getLineHeightSnapshot,
-    () => DEFAULT_LINE_HEIGHT
+    () => DEFAULT_READING_PRESENTATION.lineHeight
   );
   const letterSpacingEm = useSyncExternalStore(
     subscribeToReadingSettings,
     getLetterSpacingSnapshot,
-    () => DEFAULT_LETTER_SPACING
+    () => DEFAULT_READING_PRESENTATION.letterSpacingEm
   );
   const fontFamily = useSyncExternalStore(
     subscribeToReadingSettings,
     getFontFamilySnapshot,
-    () => DEFAULT_FONT_FAMILY
+    () => DEFAULT_READING_PRESENTATION.fontFamily
   );
   const editableByExperimenter = useSyncExternalStore(
     subscribeToReadingSettings,
     getEditableByExperimenterSnapshot,
-    () => DEFAULT_EDITABLE_BY_EXPERIMENTER
+    () => DEFAULT_READING_PRESENTATION.editableByExperimenter
   );
   const experimentSetupId = useSyncExternalStore(
     subscribeToReadingSettings,
@@ -234,21 +225,21 @@ export function useReadingSettings() {
   );
 
   const setFontSizePx = useCallback((value: number) => {
-    writeStoredValue(FONT_SIZE_KEY, String(clampRange(value, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_FONT_SIZE)));
+    writeStoredValue(FONT_SIZE_KEY, String(clampRange(value, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_READING_PRESENTATION.fontSizePx)));
   }, []);
 
   const setLineWidthPx = useCallback((value: number) => {
-    writeStoredValue(LINE_WIDTH_KEY, String(clampRange(value, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_LINE_WIDTH)));
+    writeStoredValue(LINE_WIDTH_KEY, String(clampRange(value, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_READING_PRESENTATION.lineWidthPx)));
   }, []);
 
   const setLineHeight = useCallback((value: number) => {
-    writeStoredValue(LINE_HEIGHT_KEY, String(clampRange(value, 1.2, 2.2, DEFAULT_LINE_HEIGHT)));
+    writeStoredValue(LINE_HEIGHT_KEY, String(clampRange(value, 1.2, 2.2, DEFAULT_READING_PRESENTATION.lineHeight)));
   }, []);
 
   const setLetterSpacingEm = useCallback((value: number) => {
     writeStoredValue(
       LETTER_SPACING_KEY,
-      String(clampRange(value, 0, 0.12, DEFAULT_LETTER_SPACING))
+      String(clampRange(value, 0, 0.12, DEFAULT_READING_PRESENTATION.letterSpacingEm))
     );
   }, []);
 
@@ -263,43 +254,53 @@ export function useReadingSettings() {
   const increaseFontSize = useCallback(() => {
     writeStoredValue(
       FONT_SIZE_KEY,
-      String(clampRange(fontSizePx + FONT_SIZE_STEP, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_FONT_SIZE))
+      String(clampRange(fontSizePx + FONT_SIZE_STEP, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_READING_PRESENTATION.fontSizePx))
     );
   }, [fontSizePx]);
 
   const decreaseFontSize = useCallback(() => {
     writeStoredValue(
       FONT_SIZE_KEY,
-      String(clampRange(fontSizePx - FONT_SIZE_STEP, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_FONT_SIZE))
+      String(clampRange(fontSizePx - FONT_SIZE_STEP, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_READING_PRESENTATION.fontSizePx))
     );
   }, [fontSizePx]);
 
   const increaseLineWidth = useCallback(() => {
     writeStoredValue(
       LINE_WIDTH_KEY,
-      String(clampRange(lineWidthPx + LINE_WIDTH_STEP, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_LINE_WIDTH))
+      String(clampRange(lineWidthPx + LINE_WIDTH_STEP, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_READING_PRESENTATION.lineWidthPx))
     );
   }, [lineWidthPx]);
 
   const decreaseLineWidth = useCallback(() => {
     writeStoredValue(
       LINE_WIDTH_KEY,
-      String(clampRange(lineWidthPx - LINE_WIDTH_STEP, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_LINE_WIDTH))
+      String(clampRange(lineWidthPx - LINE_WIDTH_STEP, LINE_WIDTH_MIN, LINE_WIDTH_MAX, DEFAULT_READING_PRESENTATION.lineWidthPx))
     );
   }, [lineWidthPx]);
 
   const resetReadingSettings = useCallback(() => {
-    writeStoredValue(FONT_SIZE_KEY, String(DEFAULT_FONT_SIZE));
-    writeStoredValue(LINE_WIDTH_KEY, String(DEFAULT_LINE_WIDTH));
-    writeStoredValue(LINE_HEIGHT_KEY, String(DEFAULT_LINE_HEIGHT));
-    writeStoredValue(LETTER_SPACING_KEY, String(DEFAULT_LETTER_SPACING));
-    writeStoredValue(FONT_FAMILY_KEY, DEFAULT_FONT_FAMILY);
-    writeStoredValue(EDITABLE_BY_EXPERIMENTER_KEY, String(DEFAULT_EDITABLE_BY_EXPERIMENTER));
+    writeStoredValue(FONT_SIZE_KEY, String(DEFAULT_READING_PRESENTATION.fontSizePx));
+    writeStoredValue(LINE_WIDTH_KEY, String(DEFAULT_READING_PRESENTATION.lineWidthPx));
+    writeStoredValue(LINE_HEIGHT_KEY, String(DEFAULT_READING_PRESENTATION.lineHeight));
+    writeStoredValue(LETTER_SPACING_KEY, String(DEFAULT_READING_PRESENTATION.letterSpacingEm));
+    writeStoredValue(FONT_FAMILY_KEY, DEFAULT_READING_PRESENTATION.fontFamily);
+    writeStoredValue(EDITABLE_BY_EXPERIMENTER_KEY, String(DEFAULT_READING_PRESENTATION.editableByExperimenter));
     removeStoredValue(EXPERIMENT_SETUP_ID_KEY);
     removeStoredValue(EXPERIMENT_SETUP_NAME_KEY);
   }, []);
 
+  const presentation = applyReadingPresentationPatch(DEFAULT_READING_PRESENTATION, {
+    fontFamily,
+    fontSizePx,
+    lineWidthPx,
+    lineHeight,
+    letterSpacingEm,
+    editableByExperimenter,
+  })
+
   return {
+    presentation,
     fontFamily,
     fontSizePx,
     lineWidthPx,

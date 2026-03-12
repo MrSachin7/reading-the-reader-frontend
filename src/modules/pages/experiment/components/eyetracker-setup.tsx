@@ -149,7 +149,14 @@ export function EyetrackerSetup({
       saveLicence: stepOneDraft.saveLicence,
       licenceFile: null,
     })
-  }, [form, stepOneDraft.lastSyncedFingerprint, stepOneDraft.selectionConfirmed])
+  }, [
+    form,
+    stepOneDraft.lastSyncedFingerprint,
+    stepOneDraft.overwriteExistingLicence,
+    stepOneDraft.saveLicence,
+    stepOneDraft.selectionConfirmed,
+    stepOneDraft.serialNumber,
+  ])
 
   const handleReloadEyetrackers = () => {
     setIsReloadAnimating(true)

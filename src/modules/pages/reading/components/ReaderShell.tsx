@@ -2,24 +2,51 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader";
 import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay";
+import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader";
 import { ReadingToolbar } from "@/modules/pages/reading/components/ReadingToolbar";
 import { countWords, formatEstimatedMinutes } from "@/modules/pages/reading/lib/readingMetrics";
-import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
+import type { ReadingPresentationSettings } from "@/modules/pages/reading/lib/readingPresentation";
+import { applyReadingPresentationPatch } from "@/modules/pages/reading/lib/readingPresentation";
+import { useGazeTokenHighlight, type GazeFocusState } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { usePreserveReadingContext } from "@/modules/pages/reading/lib/usePreserveReadingContext";
-import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
-import { useGazeTokenHighlight } from "@/modules/pages/reading/lib/useGazeTokenHighlight";
 import { useReadingProgress } from "@/modules/pages/reading/lib/useReadingProgress";
-import { useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettings";
+import { useRemoteTokenHighlight } from "@/modules/pages/reading/lib/useRemoteTokenHighlight";
+import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown";
+import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize";
+import { cn } from "@/lib/utils";
+
+type ReaderViewportMetrics = {
+  scrollProgress: number;
+  viewportHeightPx: number;
+  contentHeightPx: number;
+  contentWidthPx: number;
+};
 
 type ReaderShellProps = {
   docId: string;
   markdown: string;
+  presentation: ReadingPresentationSettings;
+  experimentSetupName?: string | null;
   preserveContextOnIntervention?: boolean;
   highlightContext?: boolean;
   displayGazePosition?: boolean;
   highlightTokensBeingLookedAt?: boolean;
+  showToolbar?: boolean;
+  showBackButton?: boolean;
+  showLixScores?: boolean;
+  onPresentationChange?: (next: ReadingPresentationSettings) => void;
+  onViewportMetricsChange?: (metrics: ReaderViewportMetrics) => void;
+  onFocusChange?: (focus: GazeFocusState) => void;
+  viewportScrollProgress?: number | null;
+  remoteFocus?: {
+    isInsideReadingArea: boolean;
+    normalizedContentX: number | null;
+    normalizedContentY: number | null;
+    activeTokenId: string | null;
+  } | null;
+  frameClassName?: string;
+  embedded?: boolean;
 };
 
 const FONT_FAMILY_STYLES = {
@@ -38,34 +65,59 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable;
 }
 
+function getFontFamilyStyle(fontFamily: string) {
+  return FONT_FAMILY_STYLES[
+    (fontFamily in FONT_FAMILY_STYLES ? fontFamily : "merriweather") as keyof typeof FONT_FAMILY_STYLES
+  ];
+}
+
+function buildScrollProgress(container: HTMLElement) {
+  const scrollableHeight = Math.max(container.scrollHeight - container.clientHeight, 0);
+  if (scrollableHeight === 0) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, container.scrollTop / scrollableHeight));
+}
+
 export function ReaderShell({
   docId,
   markdown,
+  presentation,
+  experimentSetupName = null,
   preserveContextOnIntervention = false,
   highlightContext = false,
-  displayGazePosition = true,
+  displayGazePosition = false,
   highlightTokensBeingLookedAt = true,
+  showToolbar = false,
+  showBackButton = true,
+  showLixScores = true,
+  onPresentationChange,
+  onViewportMetricsChange,
+  onFocusChange,
+  viewportScrollProgress = null,
+  remoteFocus = null,
+  frameClassName,
+  embedded = false,
 }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const escHoldTimerRef = useRef<number | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const {
-    fontFamily,
-    fontSizePx,
-    lineWidthPx,
-    lineHeight,
-    letterSpacingEm,
-    experimentSetupName,
-    increaseFontSize,
-    decreaseFontSize,
-    increaseLineWidth,
-    decreaseLineWidth,
-    resetReadingSettings,
-  } = useReadingSettings();
-
   const { resetToTop } = useReadingProgress({ containerRef, docId });
-  useGazeTokenHighlight({ containerRef, highlightTokensBeingLookedAt });
+
+  useGazeTokenHighlight({
+    containerRef,
+    contentRef,
+    highlightTokensBeingLookedAt,
+    onFocusChange,
+  });
+
+  useRemoteTokenHighlight({
+    containerRef,
+    activeTokenId: remoteFocus?.activeTokenId ?? null,
+    enabled: Boolean(remoteFocus?.isInsideReadingArea),
+  });
 
   const parsedDoc = useMemo(() => parseMinimalMarkdown(markdown), [markdown]);
   const tokenizedBlocks = useMemo(() => tokenizeDocument(parsedDoc, docId), [docId, parsedDoc]);
@@ -77,38 +129,24 @@ export function ReaderShell({
     contentRef,
     enabled: preserveContextOnIntervention,
     highlightContext,
-    interventionKey: `${fontSizePx}:${lineWidthPx}:${lineHeight}:${letterSpacingEm}:${fontFamily}:${markdown}`,
+    interventionKey: `${presentation.fontSizePx}:${presentation.lineWidthPx}:${presentation.lineHeight}:${presentation.letterSpacingEm}:${presentation.fontFamily}:${markdown}`,
   });
 
-  const handleIncreaseFontSize = useCallback(() => {
-    captureContextAnchor();
-    increaseFontSize();
-  }, [captureContextAnchor, increaseFontSize]);
+  const updatePresentation = useCallback(
+    (patch: Partial<ReadingPresentationSettings>) => {
+      if (!onPresentationChange) {
+        return;
+      }
 
-  const handleDecreaseFontSize = useCallback(() => {
-    captureContextAnchor();
-    decreaseFontSize();
-  }, [captureContextAnchor, decreaseFontSize]);
-
-  const handleIncreaseLineWidth = useCallback(() => {
-    captureContextAnchor();
-    increaseLineWidth();
-  }, [captureContextAnchor, increaseLineWidth]);
-
-  const handleDecreaseLineWidth = useCallback(() => {
-    captureContextAnchor();
-    decreaseLineWidth();
-  }, [captureContextAnchor, decreaseLineWidth]);
-
-  const handleReset = useCallback(() => {
-    captureContextAnchor();
-    resetReadingSettings();
-    resetToTop();
-  }, [captureContextAnchor, resetReadingSettings, resetToTop]);
+      captureContextAnchor();
+      onPresentationChange(applyReadingPresentationPatch(presentation, patch));
+    },
+    [captureContextAnchor, onPresentationChange, presentation]
+  );
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) {
+      if (!onPresentationChange || event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
 
@@ -130,25 +168,25 @@ export function ReaderShell({
 
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
-        handleIncreaseFontSize();
+        updatePresentation({ fontSizePx: presentation.fontSizePx + 2 });
         return;
       }
 
       if (event.key === "-") {
         event.preventDefault();
-        handleDecreaseFontSize();
+        updatePresentation({ fontSizePx: presentation.fontSizePx - 2 });
         return;
       }
 
       if (event.key === "[") {
         event.preventDefault();
-        handleDecreaseLineWidth();
+        updatePresentation({ lineWidthPx: presentation.lineWidthPx - 20 });
         return;
       }
 
       if (event.key === "]") {
         event.preventDefault();
-        handleIncreaseLineWidth();
+        updatePresentation({ lineWidthPx: presentation.lineWidthPx + 20 });
         return;
       }
 
@@ -157,14 +195,7 @@ export function ReaderShell({
         resetToTop();
       }
     },
-    [
-      handleDecreaseFontSize,
-      handleDecreaseLineWidth,
-      handleIncreaseFontSize,
-      handleIncreaseLineWidth,
-      isFocusMode,
-      resetToTop,
-    ]
+    [isFocusMode, onPresentationChange, presentation.fontSizePx, presentation.lineWidthPx, resetToTop, updatePresentation]
   );
 
   useEffect(() => {
@@ -195,8 +226,92 @@ export function ReaderShell({
     };
   }, []);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+
+    if (!container || !content || !onViewportMetricsChange) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const emitMetrics = () => {
+      onViewportMetricsChange({
+        scrollProgress: buildScrollProgress(container),
+        viewportHeightPx: container.clientHeight,
+        contentHeightPx: content.scrollHeight,
+        contentWidthPx: content.clientWidth,
+      });
+    };
+
+    const scheduleMetrics = () => {
+      if (frameId !== 0) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        emitMetrics();
+      });
+    };
+
+    emitMetrics();
+
+    const resizeObserver = new ResizeObserver(scheduleMetrics);
+    resizeObserver.observe(container);
+    resizeObserver.observe(content);
+    container.addEventListener("scroll", scheduleMetrics, { passive: true });
+    window.addEventListener("resize", scheduleMetrics);
+
+    return () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+      resizeObserver.disconnect();
+      container.removeEventListener("scroll", scheduleMetrics);
+      window.removeEventListener("resize", scheduleMetrics);
+    };
+  }, [onViewportMetricsChange]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || viewportScrollProgress === null) {
+      return;
+    }
+
+    const scrollableHeight = Math.max(container.scrollHeight - container.clientHeight, 0);
+    if (scrollableHeight <= 0) {
+      return;
+    }
+
+    container.scrollTop = scrollableHeight * Math.min(1, Math.max(0, viewportScrollProgress));
+  }, [viewportScrollProgress]);
+
+  const remoteFocusMarker =
+    remoteFocus?.isInsideReadingArea &&
+    remoteFocus.normalizedContentX !== null &&
+    remoteFocus.normalizedContentY !== null ? (
+      <div
+        className="pointer-events-none absolute z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-sky-300 bg-sky-500/55 shadow-[0_0_22px_rgba(14,165,233,0.55)]"
+        style={{
+          left: `${remoteFocus.normalizedContentX * 100}%`,
+          top: `${remoteFocus.normalizedContentY * 100}%`,
+        }}
+        aria-hidden="true"
+      />
+    ) : null;
+
   return (
-    <div className={isFocusMode ? "min-h-screen bg-background" : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"}>
+    <div
+      className={
+        embedded
+          ? "h-full"
+          : isFocusMode
+            ? "min-h-screen bg-background"
+            : "min-h-screen bg-background px-4 py-5 md:px-8 md:py-8"
+      }
+    >
       {displayGazePosition ? (
         <LiveGazeOverlay
           statusVariant="compact"
@@ -206,23 +321,38 @@ export function ReaderShell({
       ) : null}
 
       <section
-        className={
+        className={cn(
           isFocusMode
             ? "mx-auto flex h-screen w-full max-w-6xl flex-col overflow-hidden bg-background"
-            : "mx-auto flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border bg-card shadow-sm md:h-[calc(100vh-4rem)]"
-        }
+            : embedded
+              ? "flex h-full w-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+              : "mx-auto flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border bg-card shadow-sm md:h-[calc(100vh-4rem)]",
+          frameClassName
+        )}
       >
-        {!isFocusMode ? (
+        {showToolbar ? (
           <ReadingToolbar
             estimatedTimeLabel={estimatedTimeLabel}
             experimentSetupName={experimentSetupName}
-            fontSizePx={fontSizePx}
-            lineWidthPx={lineWidthPx}
-            onIncreaseFont={handleIncreaseFontSize}
-            onDecreaseFont={handleDecreaseFontSize}
-            onIncreaseWidth={handleIncreaseLineWidth}
-            onDecreaseWidth={handleDecreaseLineWidth}
-            onReset={handleReset}
+            fontSizePx={presentation.fontSizePx}
+            lineWidthPx={presentation.lineWidthPx}
+            showBackButton={showBackButton}
+            onIncreaseFont={() => updatePresentation({ fontSizePx: presentation.fontSizePx + 2 })}
+            onDecreaseFont={() => updatePresentation({ fontSizePx: presentation.fontSizePx - 2 })}
+            onIncreaseWidth={() => updatePresentation({ lineWidthPx: presentation.lineWidthPx + 20 })}
+            onDecreaseWidth={() => updatePresentation({ lineWidthPx: presentation.lineWidthPx - 20 })}
+            onReset={() => {
+              captureContextAnchor();
+              onPresentationChange?.(applyReadingPresentationPatch(presentation, {
+                fontFamily: "merriweather",
+                fontSizePx: 18,
+                lineWidthPx: 680,
+                lineHeight: 1.8,
+                letterSpacingEm: 0,
+                editableByExperimenter: presentation.editableByExperimenter,
+              }));
+              resetToTop();
+            }}
             onEnterFocus={() => setIsFocusMode(true)}
           />
         ) : null}
@@ -238,19 +368,22 @@ export function ReaderShell({
         >
           <div
             ref={contentRef}
-            className="mx-auto w-full"
+            className="relative mx-auto w-full"
             style={{
-              maxWidth: `${lineWidthPx}px`,
-              fontSize: `${fontSizePx}px`,
-              lineHeight,
-              letterSpacing: `${letterSpacingEm}em`,
-              fontFamily: FONT_FAMILY_STYLES[fontFamily],
+              maxWidth: `${presentation.lineWidthPx}px`,
+              fontSize: `${presentation.fontSizePx}px`,
+              lineHeight: presentation.lineHeight,
+              letterSpacing: `${presentation.letterSpacingEm}em`,
+              fontFamily: getFontFamilyStyle(presentation.fontFamily),
             }}
           >
-            <MarkdownReader blocks={tokenizedBlocks} />
+            {remoteFocusMarker}
+            <MarkdownReader blocks={tokenizedBlocks} showLixScores={showLixScores} />
           </div>
         </div>
       </section>
     </div>
   );
 }
+
+export type { ReaderViewportMetrics };
