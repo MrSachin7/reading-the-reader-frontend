@@ -11,10 +11,13 @@ import {
 
 type UseGazeTokenHighlightParams = {
   containerRef: RefObject<HTMLElement | null>;
+  contentRef?: RefObject<HTMLElement | null>;
   highlightTokensBeingLookedAt?: boolean;
+  onFocusChange?: (focus: GazeFocusState) => void;
 };
 
 type WordLayout = {
+  blockId: string | null;
   bottom: number;
   centerX: number;
   centerY: number;
@@ -32,6 +35,15 @@ type HighlightVariant = "primary" | "secondary";
 type FixationCandidate = {
   index: number;
   startedAt: number;
+};
+
+export type GazeFocusState = {
+  isInsideReadingArea: boolean;
+  normalizedContentX: number | null;
+  normalizedContentY: number | null;
+  activeTokenId: string | null;
+  activeBlockId: string | null;
+  updatedAtUnixMs: number;
 };
 
 const FIXATION_INITIAL_MS = 90;
@@ -95,6 +107,7 @@ function buildWordLayouts(container: HTMLElement) {
     }
 
     layouts.push({
+      blockId: element.closest<HTMLElement>("[data-block-id]")?.dataset.blockId ?? null,
       bottom: rect.bottom,
       centerX: rect.left + rect.width / 2,
       centerY,
@@ -209,7 +222,9 @@ function applyStyles(element: HTMLElement, variant: HighlightVariant) {
 
 export function useGazeTokenHighlight({
   containerRef,
+  contentRef,
   highlightTokensBeingLookedAt = true,
+  onFocusChange,
 }: UseGazeTokenHighlightParams) {
   const wordLayoutsRef = useRef<WordLayout[]>([]);
   const activeWordIndexRef = useRef<number | null>(null);
@@ -218,6 +233,8 @@ export function useGazeTokenHighlight({
   const latestPointRef = useRef<GazePoint | null>(null);
   const normalizedPointRef = useRef<GazePoint | null>(null);
   const lastValidPointAtRef = useRef(0);
+  const lastFocusSignatureRef = useRef<string | null>(null);
+  const lastFocusReportedAtRef = useRef(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -227,6 +244,37 @@ export function useGazeTokenHighlight({
 
     let refreshFrameId = 0;
     let renderFrameId = 0;
+
+    const reportFocus = (
+      partial: Omit<GazeFocusState, "updatedAtUnixMs">
+    ) => {
+      if (!onFocusChange) {
+        return;
+      }
+
+      const signature = JSON.stringify([
+        partial.isInsideReadingArea,
+        partial.normalizedContentX?.toFixed(4) ?? null,
+        partial.normalizedContentY?.toFixed(4) ?? null,
+        partial.activeTokenId,
+        partial.activeBlockId,
+      ]);
+      const now = Date.now();
+
+      if (
+        signature === lastFocusSignatureRef.current &&
+        now - lastFocusReportedAtRef.current < 100
+      ) {
+        return;
+      }
+
+      lastFocusSignatureRef.current = signature;
+      lastFocusReportedAtRef.current = now;
+      onFocusChange({
+        ...partial,
+        updatedAtUnixMs: now,
+      });
+    };
 
     const setActiveWord = (nextIndex: number | null, force = false) => {
       if (!force && activeWordIndexRef.current === nextIndex) {
@@ -343,6 +391,13 @@ export function useGazeTokenHighlight({
       const latestPoint = latestPointRef.current;
       if (!latestPoint) {
         setActiveWord(null);
+        reportFocus({
+          isInsideReadingArea: false,
+          normalizedContentX: null,
+          normalizedContentY: null,
+          activeTokenId: null,
+          activeBlockId: null,
+        });
         renderFrameId = window.requestAnimationFrame(render);
         return;
       }
@@ -352,6 +407,13 @@ export function useGazeTokenHighlight({
         normalizedPointRef.current = null;
         fixationCandidateRef.current = null;
         setActiveWord(null);
+        reportFocus({
+          isInsideReadingArea: false,
+          normalizedContentX: null,
+          normalizedContentY: null,
+          activeTokenId: null,
+          activeBlockId: null,
+        });
         renderFrameId = window.requestAnimationFrame(render);
         return;
       }
@@ -366,6 +428,45 @@ export function useGazeTokenHighlight({
 
       const x = clamp(normalizedPoint.x * window.innerWidth, 0, window.innerWidth);
       const y = clamp(normalizedPoint.y * window.innerHeight, 0, window.innerHeight);
+      const contentElement = contentRef?.current ?? container.firstElementChild;
+
+      if (!(contentElement instanceof HTMLElement)) {
+        reportFocus({
+          isInsideReadingArea: false,
+          normalizedContentX: null,
+          normalizedContentY: null,
+          activeTokenId: null,
+          activeBlockId: null,
+        });
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
+      }
+
+      const contentRect = contentElement.getBoundingClientRect();
+      const isInsideReadingArea =
+        x >= contentRect.left &&
+        x <= contentRect.right &&
+        y >= contentRect.top &&
+        y <= contentRect.bottom &&
+        contentRect.width > 0 &&
+        contentRect.height > 0;
+
+      if (!isInsideReadingArea) {
+        setActiveWord(null);
+        fixationCandidateRef.current = null;
+        reportFocus({
+          isInsideReadingArea: false,
+          normalizedContentX: null,
+          normalizedContentY: null,
+          activeTokenId: null,
+          activeBlockId: null,
+        });
+        renderFrameId = window.requestAnimationFrame(render);
+        return;
+      }
+
+      const normalizedContentX = clamp((x - contentRect.left) / contentRect.width, 0, 1);
+      const normalizedContentY = clamp((y - contentRect.top) / contentRect.height, 0, 1);
 
       const candidateIndex = pickWordIndex(
         wordLayoutsRef.current,
@@ -375,12 +476,30 @@ export function useGazeTokenHighlight({
       );
 
       if (candidateIndex === null) {
+        reportFocus({
+          isInsideReadingArea: true,
+          normalizedContentX,
+          normalizedContentY,
+          activeTokenId: null,
+          activeBlockId: null,
+        });
         renderFrameId = window.requestAnimationFrame(render);
         return;
       }
 
       if (candidateIndex === activeWordIndexRef.current) {
         fixationCandidateRef.current = null;
+        const activeLayout =
+          activeWordIndexRef.current === null
+            ? null
+            : wordLayoutsRef.current[activeWordIndexRef.current] ?? null;
+        reportFocus({
+          isInsideReadingArea: true,
+          normalizedContentX,
+          normalizedContentY,
+          activeTokenId: activeLayout?.element.dataset.tokenId ?? null,
+          activeBlockId: activeLayout?.blockId ?? null,
+        });
         renderFrameId = window.requestAnimationFrame(render);
         return;
       }
@@ -391,6 +510,17 @@ export function useGazeTokenHighlight({
           index: candidateIndex,
           startedAt: now,
         };
+        const activeLayout =
+          activeWordIndexRef.current === null
+            ? null
+            : wordLayoutsRef.current[activeWordIndexRef.current] ?? null;
+        reportFocus({
+          isInsideReadingArea: true,
+          normalizedContentX,
+          normalizedContentY,
+          activeTokenId: activeLayout?.element.dataset.tokenId ?? null,
+          activeBlockId: activeLayout?.blockId ?? null,
+        });
         renderFrameId = window.requestAnimationFrame(render);
         return;
       }
@@ -405,6 +535,18 @@ export function useGazeTokenHighlight({
         fixationCandidateRef.current = null;
         setActiveWord(candidateIndex);
       }
+
+      const activeLayout =
+        activeWordIndexRef.current === null
+          ? null
+          : wordLayoutsRef.current[activeWordIndexRef.current] ?? null;
+      reportFocus({
+        isInsideReadingArea: true,
+        normalizedContentX,
+        normalizedContentY,
+        activeTokenId: activeLayout?.element.dataset.tokenId ?? null,
+        activeBlockId: activeLayout?.blockId ?? null,
+      });
 
       renderFrameId = window.requestAnimationFrame(render);
     };
@@ -424,8 +566,10 @@ export function useGazeTokenHighlight({
       window.removeEventListener("resize", onResize);
       fixationCandidateRef.current = null;
       normalizedPointRef.current = null;
+      lastFocusSignatureRef.current = null;
+      lastFocusReportedAtRef.current = 0;
       setActiveWord(null, true);
       wordLayoutsRef.current = [];
     };
-  }, [containerRef, highlightTokensBeingLookedAt]);
+  }, [containerRef, contentRef, highlightTokensBeingLookedAt, onFocusChange]);
 }

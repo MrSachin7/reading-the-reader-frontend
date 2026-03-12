@@ -16,6 +16,7 @@ type ReadingToolbarProps = {
   experimentSetupName: string | null;
   fontSizePx: number;
   lineWidthPx: number;
+  showBackButton?: boolean;
   onIncreaseFont: () => void;
   onDecreaseFont: () => void;
   onIncreaseWidth: () => void;
@@ -29,6 +30,7 @@ export function ReadingToolbar({
   experimentSetupName,
   fontSizePx,
   lineWidthPx,
+  showBackButton = true,
   onIncreaseFont,
   onDecreaseFont,
   onIncreaseWidth,
@@ -44,11 +46,15 @@ export function ReadingToolbar({
   return (
     <div className="sticky top-0 z-20 border-b bg-card/95 px-4 py-3 backdrop-blur md:px-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/">Back</Link>
-        </Button>
+        {showBackButton ? (
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/">Back</Link>
+            </Button>
 
-        <Separator orientation="vertical" className="hidden h-6 md:block" />
+            <Separator orientation="vertical" className="hidden h-6 md:block" />
+          </>
+        ) : null}
 
         <p className="text-sm text-muted-foreground">{estimatedTimeLabel}</p>
 

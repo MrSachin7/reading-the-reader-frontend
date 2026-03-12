@@ -6,6 +6,7 @@ import type { Token, TokenRun, TokenizedBlock } from "@/modules/pages/reading/li
 
 type MarkdownReaderProps = {
   blocks: TokenizedBlock[];
+  showLixScores?: boolean;
 };
 
 function formatLixScore(score: number) {
@@ -47,7 +48,10 @@ function renderRun(run: TokenRun, index: number) {
   return <Fragment key={`run-${index}`}>{content}</Fragment>;
 }
 
-export function MarkdownReader({ blocks }: MarkdownReaderProps) {
+export function MarkdownReader({
+  blocks,
+  showLixScores = true,
+}: MarkdownReaderProps) {
   return (
     <article className="text-foreground">
       {blocks.map((block) => {
@@ -81,7 +85,7 @@ export function MarkdownReader({ blocks }: MarkdownReaderProps) {
                 style={{ lineHeight: "inherit" }}
               >
                 {block.runs.map(renderRun)}
-                {block.lixScore !== null ? (
+                {showLixScores && block.lixScore !== null ? (
                   <span className="ml-3 inline-flex rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 text-xs font-medium tracking-[0.02em] text-muted-foreground">
                     LIX {formatLixScore(block.lixScore)}
                   </span>
