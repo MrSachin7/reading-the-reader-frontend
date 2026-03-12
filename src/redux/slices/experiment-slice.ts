@@ -199,6 +199,8 @@ const experimentSlice = createSlice({
             readingProficiency: participant.readingProficiency,
           })
         : null
+      const calibrationApplied =
+        session.setup.calibrationCompleted || calibration.result?.applied === true
 
       state.stepOne = {
         ...state.stepOne,
@@ -223,20 +225,20 @@ const experimentSlice = createSlice({
 
       state.stepThree = {
         ...state.stepThree,
-        externalCalibrationCompleted: session.setup.calibrationCompleted,
+        externalCalibrationCompleted: calibrationApplied,
         useLocalCalibration: false,
         internalCalibrationStatus:
-          calibration.status === "completed"
+          calibrationApplied
             ? "completed"
             : calibration.status === "running"
               ? "running"
               : calibration.status === "failed" || calibration.status === "cancelled"
                 ? "failed"
                 : "pending",
-        lastAppliedAtUnixMs: session.setup.calibrationCompleted
+        lastAppliedAtUnixMs: calibrationApplied
           ? calibration.completedAtUnixMs
           : null,
-        lastQuality: session.setup.calibrationCompleted ? "unknown" : null,
+        lastQuality: calibrationApplied ? "unknown" : null,
         lastCalibrationSessionId: calibration.sessionId,
         lastCalibrationStatus: calibration.result?.status ?? calibration.status,
       }

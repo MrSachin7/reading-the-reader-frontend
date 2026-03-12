@@ -98,6 +98,7 @@ export default function CalibrationPage() {
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [showPreviewOverlay, setShowPreviewOverlay] = React.useState(true)
   const runTokenRef = React.useRef(0)
+  const phaseRef = React.useRef<CalibrationPhase>("ready")
 
   const { data: currentCalibration } = useGetCalibrationStateQuery()
   const [startCalibration, { isLoading: isStarting }] = useStartCalibrationMutation()
@@ -184,12 +185,16 @@ export default function CalibrationPage() {
   }, [cancelCalibration, dispatch, isFullscreen, isVisible, phase])
 
   React.useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
+
+  React.useEffect(() => {
     return () => {
-      if (phase === "running") {
+      if (phaseRef.current === "running") {
         void cancelCalibration()
       }
     }
-  }, [cancelCalibration, phase])
+  }, [cancelCalibration])
 
   const handleReset = React.useCallback(async () => {
     runTokenRef.current += 1
