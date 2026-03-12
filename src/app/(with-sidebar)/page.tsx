@@ -10,9 +10,8 @@ export default function HomePage() {
         <Card className="rounded-[2rem] border-slate-200/80 bg-white/90 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
           <CardHeader>
             <CardTitle className="text-2xl">Experiment flow</CardTitle>
-            <CardDescription className="text-sm leading-6">
-              Keep the full stepper path when you want the eye tracker setup, participant details,
-              and calibration steps included.
+            <CardDescription>
+              This is a demo of the experiment flow, showcasing the reading material setup and live gaze overlay features. Click the button below to start the experiment.
             </CardDescription>
           </CardHeader>
           <CardContent>

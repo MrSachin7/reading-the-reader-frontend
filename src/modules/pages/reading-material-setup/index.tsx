@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { BookOpen, Check, Eye, FilePlus2, LoaderCircle, Lock, Plus, Save, SlidersHorizontal } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import { FONTS, type FontTheme } from "@/hooks/use-font-theme"
 import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader"
 import { MOCK_READING_MD } from "@/modules/pages/reading/content/mockReading"
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown"
-import { applyReadingPresentationSettings } from "@/modules/pages/reading/lib/useReadingSettings"
+import { applyReadingPresentationSettings, useReadingSettings } from "@/modules/pages/reading/lib/useReadingSettings"
 import { tokenizeDocument } from "@/modules/pages/reading/lib/tokenize"
 import {
   type CreateReadingMaterialSetupRequest,
@@ -59,6 +60,12 @@ const defaultDraft: DraftState = {
   lineHeight: 1.7,
   letterSpacingEm: 0.02,
   editableByExperimenter: true,
+}
+
+const emptyCustomDraft: DraftState = {
+  ...defaultDraft,
+  title: "Untitled text",
+  markdown: "",
 }
 
 function buildExcerpt(markdown: string, wordLimit: number) {
@@ -165,8 +172,13 @@ function normalizeReadingMaterialSetup(
 }
 
 export default function ReadingMaterialSetupPage() {
+  const searchParams = useSearchParams()
   const dispatch = useAppDispatch()
-  const [draft, setDraft] = React.useState<DraftState>(defaultDraft)
+  const { resetReadingSettings } = useReadingSettings()
+  const startInCustomEmptyMode = searchParams.get("mode") === "custom-empty"
+  const [draft, setDraft] = React.useState<DraftState>(() =>
+    startInCustomEmptyMode ? emptyCustomDraft : defaultDraft
+  )
   const [selectedSetupId, setSelectedSetupId] = React.useState<string | null>(null)
   const [saveError, setSaveError] = React.useState<string | null>(null)
   const [selectionError, setSelectionError] = React.useState<string | null>(null)
@@ -185,6 +197,14 @@ export default function ReadingMaterialSetupPage() {
     const parsed = parseMinimalMarkdown(draft.markdown)
     return tokenizeDocument(parsed, "reading-material-setup-preview")
   }, [draft.markdown])
+  const isBuiltInSelected =
+    selectedSetupId === null &&
+    draft.title === defaultDraft.title &&
+    draft.markdown === defaultDraft.markdown
+  const isCustomSelected =
+    selectedSetupId !== null ||
+    draft.markdown !== defaultDraft.markdown ||
+    draft.title === "Untitled text"
 
   const syncReadingSession = React.useCallback(
     (nextDraft: DraftState, source: "preset" | "custom") => {
@@ -195,6 +215,19 @@ export default function ReadingMaterialSetupPage() {
     },
     [dispatch]
   )
+
+  React.useEffect(() => {
+    if (!startInCustomEmptyMode) {
+      return
+    }
+
+    setSelectedSetupId(null)
+    setSaveError(null)
+    setSelectionError(null)
+    setDraft(emptyCustomDraft)
+    resetReadingSettings()
+    syncReadingSession(emptyCustomDraft, "custom")
+  }, [resetReadingSettings, startInCustomEmptyMode, syncReadingSession])
 
   const applySetup = React.useCallback(
     (next: { id: string; name: string } & DraftState) => {
@@ -225,14 +258,14 @@ export default function ReadingMaterialSetupPage() {
         const response = await getReadingMaterialSetupById(id).unwrap()
         const setup = normalizeReadingMaterialSetup(response, draft)
         if (!setup) {
-          setSelectionError("The backend returned an invalid reading material setup.")
+          setSelectionError("The saved reading material setup is invalid.")
           return
         }
 
         applySetup(setup)
       } catch (error) {
         if (getApiStatus(error) === 404) {
-          setSelectionError("That reading material setup no longer exists in the backend.")
+          setSelectionError("That reading material setup no longer exists.")
           void refetch()
           return
         }
@@ -264,7 +297,7 @@ export default function ReadingMaterialSetupPage() {
 
       const savedSetup = normalizeReadingMaterialSetup(response, draft)
       if (!savedSetup) {
-        setSaveError("The backend returned an invalid reading material setup.")
+        setSaveError("The saved reading material setup is invalid.")
         return
       }
 
@@ -273,7 +306,7 @@ export default function ReadingMaterialSetupPage() {
     } catch (error) {
       if (getApiStatus(error) === 404) {
         setSelectedSetupId(null)
-        setSaveError("This reading material setup no longer exists in the backend.")
+        setSaveError("This reading material setup no longer exists.")
         void refetch()
         return
       }
@@ -289,14 +322,13 @@ export default function ReadingMaterialSetupPage() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">Reading material setup</Badge>
-              <Badge variant="outline">Backend-backed</Badge>
             </div>
             <div className="space-y-2">
               <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
                 Create a reading material setup before the reading session starts.
               </h1>
               <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-                Save text, questions, and presentation settings together.
+                Save text, questions, and presentation settings together as one setup.
               </p>
             </div>
           </div>
@@ -368,6 +400,7 @@ export default function ReadingMaterialSetupPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setSelectedSetupId(null)
                     const nextDraft = {
                       ...draft,
                       title: defaultDraft.title,
@@ -377,7 +410,7 @@ export default function ReadingMaterialSetupPage() {
                     syncReadingSession(nextDraft, "preset")
                   }}
                   className={`w-full rounded-2xl border p-5 text-left transition-colors ${
-                    draft.title === defaultDraft.title && draft.markdown === defaultDraft.markdown
+                    isBuiltInSelected
                       ? "border-primary bg-accent/50"
                       : "bg-card hover:border-primary/40 hover:bg-accent/30"
                   }`}
@@ -395,6 +428,7 @@ export default function ReadingMaterialSetupPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setSelectedSetupId(null)
                     const nextDraft = {
                       ...draft,
                       title:
@@ -410,7 +444,7 @@ export default function ReadingMaterialSetupPage() {
                     syncReadingSession(nextDraft, "custom")
                   }}
                   className={`w-full rounded-2xl border p-5 text-left transition-colors ${
-                    draft.markdown !== defaultDraft.markdown || draft.title === "Untitled text"
+                    isCustomSelected
                       ? "border-primary bg-accent/50"
                       : "bg-card hover:border-primary/40 hover:bg-accent/30"
                   }`}
@@ -618,7 +652,7 @@ export default function ReadingMaterialSetupPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">Save reading material setup</CardTitle>
-              <CardDescription>One backend record for the whole setup.</CardDescription>
+              <CardDescription>Save the whole setup as a single record.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="rounded-2xl border bg-muted/30 p-4">

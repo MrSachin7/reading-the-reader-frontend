@@ -523,10 +523,18 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
     useGetReadingMaterialSetupsQuery()
   const [getReadingMaterialSetupById, { isFetching: isLoadingSelectedMaterial }] =
     useLazyGetReadingMaterialSetupByIdQuery()
-  const { experimentSetupName, resetReadingSettings } = useReadingSettings()
+  const { experimentSetupId, resetReadingSettings } = useReadingSettings()
 
   const [selectionError, setSelectionError] = React.useState<string | null>(null)
   const hasSelectedMaterial = readingSession.title.trim().length > 0
+  const selectedSavedSetup = React.useMemo(
+    () => materialSetups.find((setup) => setup.id === experimentSetupId) ?? null,
+    [experimentSetupId, materialSetups]
+  )
+  const selectedPresentationLabel =
+    readingSession.source === "preset"
+      ? "Default presentation"
+      : selectedSavedSetup?.name ?? "Custom presentation"
 
   React.useEffect(() => {
     onCompletionChange?.(hasSelectedMaterial)
@@ -598,7 +606,7 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
                     applyReadingPresentationSettings(savedSetup)
                   } catch (error) {
                     if (getApiStatus(error) === 404) {
-                      setSelectionError("That saved reading material setup no longer exists in the backend.")
+                      setSelectionError("That saved reading material setup no longer exists.")
                       void refetch()
                       return
                     }
@@ -610,9 +618,7 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
                 className={cn(
                   "w-full rounded-2xl border p-5 text-left transition-colors",
                   "bg-card hover:border-primary/40 hover:bg-accent/30",
-                  readingSession.title.trim() === setup.title &&
-                    experimentSetupName === setup.name &&
-                    "border-primary bg-accent/50"
+                  experimentSetupId === setup.id && "border-primary bg-accent/50"
                 )}
               >
                 <div className="space-y-3">
@@ -630,7 +636,7 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
 
             <button
               type="button"
-              onClick={() => router.push("/reading-material/setup")}
+              onClick={() => router.push("/reading-material/setup?mode=custom-empty")}
               disabled={isLoadingMaterialSetups}
               className="flex min-h-[170px] w-full flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 p-5 text-center transition-colors hover:border-primary/40 hover:bg-accent/30"
             >
@@ -643,7 +649,7 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
             <div className="rounded-xl border bg-muted/20 p-4 text-sm text-muted-foreground">
               Selected: <span className="font-medium text-foreground">{readingSession.title}</span>
               {" · "}
-              <span className="font-medium text-foreground">{experimentSetupName ?? "Default presentation"}</span>
+              <span className="font-medium text-foreground">{selectedPresentationLabel}</span>
             </div>
           ) : null}
         </CardContent>
