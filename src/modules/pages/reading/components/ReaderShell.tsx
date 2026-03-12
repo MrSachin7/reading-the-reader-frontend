@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay";
 import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader";
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 type ReaderViewportMetrics = {
   scrollProgress: number;
+  viewportWidthPx: number;
   viewportHeightPx: number;
   contentHeightPx: number;
   contentWidthPx: number;
@@ -46,6 +47,7 @@ type ReaderShellProps = {
     activeTokenId: string | null;
   } | null;
   frameClassName?: string;
+  frameStyle?: CSSProperties;
   embedded?: boolean;
 };
 
@@ -98,6 +100,7 @@ export function ReaderShell({
   viewportScrollProgress = null,
   remoteFocus = null,
   frameClassName,
+  frameStyle,
   embedded = false,
 }: ReaderShellProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -239,6 +242,7 @@ export function ReaderShell({
     const emitMetrics = () => {
       onViewportMetricsChange({
         scrollProgress: buildScrollProgress(container),
+        viewportWidthPx: container.clientWidth,
         viewportHeightPx: container.clientHeight,
         contentHeightPx: content.scrollHeight,
         contentWidthPx: content.clientWidth,
@@ -329,6 +333,7 @@ export function ReaderShell({
               : "mx-auto flex h-[calc(100vh-2.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border bg-card shadow-sm md:h-[calc(100vh-4rem)]",
           frameClassName
         )}
+        style={frameStyle}
       >
         {showToolbar ? (
           <ReadingToolbar

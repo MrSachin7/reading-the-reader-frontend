@@ -1,11 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Sparkles, Type, UserRound } from "lucide-react"
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
+import { Activity, Gauge, Sparkles, Type, UserRound } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
@@ -50,6 +52,86 @@ function formatTime(unixMs: number | null | undefined) {
   }
 
   return new Date(unixMs).toLocaleTimeString()
+}
+
+function getLatencyTone(latencyMs: number | null | undefined) {
+  if (latencyMs === null || latencyMs === undefined || Number.isNaN(latencyMs)) {
+    return "text-muted-foreground"
+  }
+
+  if (latencyMs <= 60) {
+    return "text-emerald-500"
+  }
+
+  if (latencyMs <= 120) {
+    return "text-amber-500"
+  }
+
+  return "text-rose-500"
+}
+
+function getLatencyBars(latencyMs: number | null | undefined) {
+  if (latencyMs === null || latencyMs === undefined || Number.isNaN(latencyMs)) {
+    return 0
+  }
+
+  if (latencyMs <= 60) {
+    return 4
+  }
+
+  if (latencyMs <= 120) {
+    return 3
+  }
+
+  if (latencyMs <= 180) {
+    return 2
+  }
+
+  return 1
+}
+
+function LatencySignal({ latencyMs }: { latencyMs: number | null | undefined }) {
+  const bars = getLatencyBars(latencyMs)
+  const tone = getLatencyTone(latencyMs)
+
+  return (
+    <div className={`flex items-end gap-0.5 ${tone}`} aria-hidden="true">
+      {[0, 1, 2, 3].map((index) => (
+        <span
+          key={index}
+          className={`w-1 rounded-full bg-current transition-opacity ${
+            index < bars ? "opacity-100" : "opacity-20"
+          }`}
+          style={{ height: `${6 + index * 3}px` }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function MirrorStat({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: ReactNode
+  label: string
+  value: ReactNode
+  accent?: ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border bg-background/82 px-3 py-2.5 shadow-sm backdrop-blur-md">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-muted-foreground">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-semibold">{value}</p>
+      </div>
+      {accent ? <div className="shrink-0">{accent}</div> : null}
+    </div>
+  )
 }
 
 export default function ResearcherCurrentLivePage() {
@@ -159,6 +241,7 @@ function ResearcherCurrentLiveBody({
 }: ResearcherCurrentLiveBodyProps) {
   const readingSession = session.readingSession!
   const content = readingSession.content!
+  const [followParticipant, setFollowParticipant] = useState(true)
 
   const presentation = normalizeReadingPresentation({
     fontFamily: readingSession.presentation.fontFamily,
@@ -212,6 +295,7 @@ function ResearcherCurrentLiveBody({
       ? activeBlock.lixScore
       : null
   const documentLix = calculateLix(content.markdown)
+  const latencyMs = liveGaze.connectionStats?.lastRttMs ?? null
 
   const commitIntervention = useCallback(
     (next: Partial<typeof DEFAULT_READING_PRESENTATION>, reason: string) => {
@@ -250,63 +334,89 @@ function ResearcherCurrentLiveBody({
         </div>
       </header>
 
-      <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_23rem]">
-        <div className="flex min-h-0 flex-col gap-3">
-          <div className="grid shrink-0 gap-2 sm:grid-cols-2 2xl:grid-cols-4">
-            <div className="rounded-2xl border bg-card/70 px-4 py-2.5">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Sample rate</p>
-              <p className="mt-1 text-base font-semibold">{liveGaze.sampleRateHz} Hz</p>
-            </div>
-            <div className="rounded-2xl border bg-card/70 px-4 py-2.5">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Validity</p>
-              <p className="mt-1 text-base font-semibold">{formatPercent(validityRate)}</p>
-            </div>
-            <div className="rounded-2xl border bg-card/70 px-4 py-2.5">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Latency</p>
-              <p className="mt-1 text-base font-semibold">{liveGaze.connectionStats?.lastRttMs ?? "-"} ms</p>
-            </div>
-            <div className="rounded-2xl border bg-card/70 px-4 py-2.5">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Participant</p>
-              <p className="mt-1 truncate text-base font-semibold">
-                {session.participant?.name ?? "Not registered"}
-              </p>
-            </div>
-          </div>
-
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-[2rem] border bg-card shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
-            <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-end">
-              <div className="pointer-events-auto rounded-2xl border bg-background/90 px-4 py-3 shadow-sm backdrop-blur">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Current word</p>
-                <p className="mt-1 max-w-[14rem] truncate text-sm font-semibold">
-                  {activeWord ?? "No fixation"}
-                </p>
+      <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[16rem_minmax(0,1fr)_23rem]">
+        <Card className="flex h-full min-h-0 flex-col rounded-[1.75rem]">
+          <CardHeader className="shrink-0 space-y-1 pb-4">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Activity className="h-4 w-4" />
+              Live stats
+            </CardTitle>
+            <CardDescription>
+              Session telemetry and mirror controls, kept outside the reading area.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="grid gap-2">
+              <div className="rounded-2xl border bg-muted/20 p-4">
+                <label htmlFor="follow-participant" className="flex cursor-pointer items-start gap-3">
+                  <Checkbox
+                    id="follow-participant"
+                    checked={followParticipant}
+                    onCheckedChange={(checked) => setFollowParticipant(checked === true)}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">Follow participant</p>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Sync the reader to the participant&apos;s scroll position.
+                    </p>
+                  </div>
+                </label>
               </div>
-            </div>
-
-            <div className="h-full min-h-0">
-              <ReaderShell
-                docId={content.documentId}
-                markdown={content.markdown}
-                presentation={presentation}
-                experimentSetupName={content.title}
-                preserveContextOnIntervention={true}
-                highlightContext={true}
-                displayGazePosition={false}
-                highlightTokensBeingLookedAt={false}
-                showToolbar={false}
-                showBackButton={false}
-                showLixScores={true}
-                viewportScrollProgress={readingSession.participantViewport.scrollProgress}
-                remoteFocus={{
-                  isInsideReadingArea: readingSession.focus.isInsideReadingArea,
-                  normalizedContentX: readingSession.focus.normalizedContentX,
-                  normalizedContentY: readingSession.focus.normalizedContentY,
-                  activeTokenId: readingSession.focus.activeTokenId,
-                }}
-                embedded
-                frameClassName="rounded-none border-0 shadow-none"
+              <div className="rounded-2xl border bg-muted/20 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Current word</p>
+                <p className="mt-1 truncate text-sm font-semibold">{activeWord ?? "No fixation"}</p>
+              </div>
+              <MirrorStat
+                icon={<Gauge className="h-4 w-4" />}
+                label="Sample rate"
+                value={`${liveGaze.sampleRateHz} Hz`}
+              />
+              <MirrorStat
+                icon={<Activity className="h-4 w-4" />}
+                label="Validity"
+                value={formatPercent(validityRate)}
+              />
+              <MirrorStat
+                icon={<Activity className="h-4 w-4" />}
+                label="Latency"
+                value={latencyMs === null ? "-" : `${latencyMs} ms`}
+                accent={<LatencySignal latencyMs={latencyMs} />}
+              />
+              <MirrorStat
+                icon={<UserRound className="h-4 w-4" />}
+                label="Participant"
+                value={session.participant?.name ?? "Not registered"}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-[2rem] border bg-card shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
+          <div className="h-full min-h-0">
+            <ReaderShell
+              docId={content.documentId}
+              markdown={content.markdown}
+              presentation={presentation}
+              experimentSetupName={content.title}
+              preserveContextOnIntervention={true}
+              highlightContext={true}
+              displayGazePosition={false}
+              highlightTokensBeingLookedAt={false}
+              showToolbar={false}
+              showBackButton={false}
+              showLixScores={true}
+              viewportScrollProgress={
+                followParticipant ? readingSession.participantViewport.scrollProgress : null
+              }
+              remoteFocus={{
+                isInsideReadingArea: readingSession.focus.isInsideReadingArea,
+                normalizedContentX: readingSession.focus.normalizedContentX,
+                normalizedContentY: readingSession.focus.normalizedContentY,
+                activeTokenId: readingSession.focus.activeTokenId,
+              }}
+              embedded
+              frameClassName="rounded-none border-0 shadow-none"
+            />
           </div>
         </div>
 
@@ -456,7 +566,7 @@ function ResearcherCurrentLiveBody({
               </TabsContent>
 
               <TabsContent value="context" className="mt-4 flex-1">
-                <div className="space-y-3">
+                <div className="flex h-full min-h-0 flex-col gap-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <UserRound className="h-4 w-4" />
                     {session.participant?.name ?? "Participant not registered"}
@@ -487,6 +597,25 @@ function ResearcherCurrentLiveBody({
                         <p className="mt-1 font-semibold">{formatNumber(activeBlockLix, 1)}</p>
                       </div>
                     </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border bg-muted/20 p-4 text-sm">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          Viewport
+                        </p>
+                        <p className="mt-1 font-semibold">
+                          {Math.round(readingSession.participantViewport.viewportWidthPx)} x{" "}
+                          {Math.round(readingSession.participantViewport.viewportHeightPx)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/20 p-4 text-sm">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          Mirror mode
+                        </p>
+                        <p className="mt-1 font-semibold">
+                          {followParticipant ? "Following participant" : "Free researcher scroll"}
+                        </p>
+                      </div>
+                    </div>
                     <div className="rounded-2xl border bg-muted/20 p-4 text-sm">
                       <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                         <Sparkles className="h-3.5 w-3.5" />
@@ -504,22 +633,42 @@ function ResearcherCurrentLiveBody({
                         </p>
                       ) : null}
                     </div>
-                    {readingSession.recentInterventions.slice(0, 2).map((event) => (
-                      <div key={event.id} className="rounded-2xl border bg-muted/20 p-4 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <Badge variant="outline">{event.source}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(event.appliedAtUnixMs)}
-                          </span>
+                  </div>
+
+                  <div className="min-h-0 rounded-2xl border bg-muted/20">
+                    <div className="flex items-center justify-between gap-3 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        Applied interventions
+                      </p>
+                      <Badge variant="outline">{readingSession.recentInterventions.length}</Badge>
+                    </div>
+
+                    {readingSession.recentInterventions.length > 0 ? (
+                      <ScrollArea className="h-72">
+                        <div className="divide-y">
+                          {readingSession.recentInterventions.map((event) => (
+                            <div key={event.id} className="px-4 py-3 text-sm">
+                              <div className="flex items-center justify-between gap-3">
+                                <Badge variant="outline">{event.source}</Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatTime(event.appliedAtUnixMs)}
+                                </span>
+                              </div>
+                              <p className="mt-2 font-medium leading-5">{event.reason}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {event.appliedPresentation.fontFamily},{" "}
+                                {event.appliedPresentation.fontSizePx}px,{" "}
+                                {event.appliedPresentation.lineWidthPx}px
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                        <p className="mt-3 font-medium">{event.reason}</p>
-                      </div>
-                    ))}
-                    {readingSession.recentInterventions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
+                      </ScrollArea>
+                    ) : (
+                      <p className="px-4 pb-4 text-sm text-muted-foreground">
                         No interventions have been issued in this session yet.
                       </p>
-                    ) : null}
+                    )}
                   </div>
                 </div>
               </TabsContent>

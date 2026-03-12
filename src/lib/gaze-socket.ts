@@ -77,6 +77,7 @@ type ClientEnvelope =
       type: "participantViewportUpdated";
       payload: {
         scrollProgress: number;
+        viewportWidthPx: number;
         viewportHeightPx: number;
         contentHeightPx: number;
         contentWidthPx: number;
@@ -122,6 +123,7 @@ type CalibrationStateListener = (snapshot: CalibrationSessionSnapshot) => void;
 type ExperimentSessionListener = (snapshot: ExperimentSessionSnapshot) => void;
 type ParticipantViewportPayload = {
   scrollProgress: number;
+  viewportWidthPx: number;
   viewportHeightPx: number;
   contentHeightPx: number;
   contentWidthPx: number;

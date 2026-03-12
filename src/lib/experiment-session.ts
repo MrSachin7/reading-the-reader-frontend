@@ -43,6 +43,7 @@ export type ReadingContentSnapshot = {
 export type ParticipantViewportSnapshot = {
   isConnected: boolean
   scrollProgress: number
+  viewportWidthPx: number
   viewportHeightPx: number
   contentHeightPx: number
   contentWidthPx: number
@@ -104,6 +105,7 @@ export const EMPTY_READING_SESSION: LiveReadingSessionSnapshot = {
   participantViewport: {
     isConnected: false,
     scrollProgress: 0,
+    viewportWidthPx: 0,
     viewportHeightPx: 0,
     contentHeightPx: 0,
     contentWidthPx: 0,
