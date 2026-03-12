@@ -296,6 +296,10 @@ function ResearcherCurrentLiveBody({
       : null
   const documentLix = calculateLix(content.markdown)
   const latencyMs = liveGaze.connectionStats?.lastRttMs ?? null
+  const mirroredViewportWidthPx =
+    readingSession.participantViewport.viewportWidthPx > 0
+      ? Math.round(readingSession.participantViewport.viewportWidthPx)
+      : null
 
   const commitIntervention = useCallback(
     (next: Partial<typeof DEFAULT_READING_PRESENTATION>, reason: string) => {
@@ -391,8 +395,8 @@ function ResearcherCurrentLiveBody({
           </CardContent>
         </Card>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-[2rem] border bg-card shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
-          <div className="h-full min-h-0">
+        <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden rounded-[2rem] border bg-card shadow-[0_28px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex h-full min-h-0 justify-center">
             <ReaderShell
               docId={content.documentId}
               markdown={content.markdown}
@@ -415,7 +419,15 @@ function ResearcherCurrentLiveBody({
                 activeTokenId: readingSession.focus.activeTokenId,
               }}
               embedded
-              frameClassName="rounded-none border-0 shadow-none"
+              frameClassName="mx-auto rounded-none border-0 shadow-none"
+              frameStyle={
+                mirroredViewportWidthPx === null
+                  ? undefined
+                  : {
+                      width: `${mirroredViewportWidthPx}px`,
+                      minWidth: `${mirroredViewportWidthPx}px`,
+                    }
+              }
             />
           </div>
         </div>
