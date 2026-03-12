@@ -661,7 +661,10 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
 export function ExperimentStepper() {
   const dispatch = useAppDispatch()
   const router = useRouter()
-  const { data: experimentSession } = useGetExperimentSessionQuery()
+  const stepThree = useAppSelector((state: RootState) => state.experiment.stepThree)
+  const { data: experimentSession } = useGetExperimentSessionQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  })
   const [step, setStep] = React.useState(0)
   const [isStepSubmitting, setIsStepSubmitting] = React.useState(false)
   const [stepCompletion, setStepCompletion] = React.useState<Record<number, boolean>>({
@@ -680,17 +683,26 @@ export function ExperimentStepper() {
       return
     }
 
+    const calibrationApplied =
+      experimentSession.setup.calibrationCompleted ||
+      experimentSession.calibration.result?.applied === true ||
+      stepThree.externalCalibrationCompleted
+    const backendStep = Math.min(
+      Math.max(experimentSession.setup.currentStepIndex, 0),
+      steps.length - 1
+    )
+
     dispatch(hydrateExperimentFromSession(experimentSession))
     setStepCompletion({
       0: experimentSession.setup.eyeTrackerSetupCompleted,
       1: experimentSession.setup.participantSetupCompleted,
-      2: experimentSession.setup.calibrationCompleted,
+      2: calibrationApplied,
       3: Boolean(
         (experimentSession.setup as Record<string, unknown>).readingMaterialSetupCompleted
       ),
     })
-    setStep(Math.min(Math.max(experimentSession.setup.currentStepIndex, 0), steps.length - 1))
-  }, [dispatch, experimentSession])
+    setStep(calibrationApplied ? Math.max(backendStep, 2) : backendStep)
+  }, [dispatch, experimentSession, stepThree.externalCalibrationCompleted])
 
   const handleNext = async () => {
     if (step === steps.length - 1 || !canAdvance) {
