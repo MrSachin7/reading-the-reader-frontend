@@ -61,7 +61,7 @@ export function CalibrationStep({
         </CardTitle>
         <CardDescription className="max-w-3xl text-base leading-7">
           This flow drives Tobii&apos;s screen-based calibration from the backend. Open the full
-          calibration page, guide the participant through the five targets, and return here once it
+          calibration page, guide the participant through the configured targets, and return here once it
           has been applied on the eye tracker.
         </CardDescription>
       </CardHeader>
@@ -72,7 +72,7 @@ export function CalibrationStep({
             <div className="min-w-0">
               <p className="text-base font-semibold">Launch the calibration screen.</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                The backend enters Tobii calibration mode, collects all five points, and applies the
+                The backend enters Tobii calibration mode, collects the configured calibration points, and applies the
                 result directly on the selected eye tracker.
               </p>
             </div>

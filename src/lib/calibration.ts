@@ -1,4 +1,4 @@
-export type CalibrationPattern = "screen-based-five-point"
+export type CalibrationPattern = string
 
 export type CalibrationPointState = {
   pointId: string

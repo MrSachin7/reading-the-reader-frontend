@@ -89,9 +89,10 @@ export default function CalibrationPage() {
   const [cancelCalibration] = useCancelCalibrationMutation()
 
   const activeTarget = snapshot?.points[activePointIndex] ?? currentCalibration?.points[0] ?? null
+  const totalPoints = snapshot?.points.length ?? currentCalibration?.points.length ?? 0
   const pointProgress = snapshot?.points.length
     ? `${snapshot.points.filter((point) => point.status === "collected").length} / ${snapshot.points.length}`
-    : "0 / 5"
+    : `0 / ${totalPoints}`
 
   const requestFullscreen = React.useCallback(async () => {
     if (document.fullscreenElement) {
@@ -429,7 +430,7 @@ export default function CalibrationPage() {
                 The eye tracker did not accept this run.
               </h2>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Restart the flow, keep the participant steady, and repeat the five points.
+                Restart the flow, keep the participant steady, and repeat the full target pattern.
               </p>
               {errorMessage ? (
                 <p className="mt-3 text-sm leading-7 text-amber-700">{errorMessage}</p>
