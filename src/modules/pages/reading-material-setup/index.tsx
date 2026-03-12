@@ -14,6 +14,7 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { FONTS, type FontTheme } from "@/hooks/use-font-theme"
+import { getErrorMessage, getErrorStatus } from "@/lib/error-utils"
 import { MarkdownReader } from "@/modules/pages/reading/components/MarkdownReader"
 import { MOCK_READING_MD } from "@/modules/pages/reading/content/mockReading"
 import { parseMinimalMarkdown } from "@/modules/pages/reading/lib/minimalMarkdown"
@@ -82,45 +83,6 @@ function formatDate(unixMs: number) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(unixMs))
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || !error) {
-    return fallback
-  }
-
-  const errorRecord = error as {
-    data?: { message?: string; errors?: Record<string, string[]> }
-    message?: string
-    status?: number
-  }
-
-  const firstValidationError = errorRecord.data?.errors
-    ? Object.values(errorRecord.data.errors).flat()[0]
-    : null
-
-  if (firstValidationError) {
-    return firstValidationError
-  }
-
-  if (typeof errorRecord.data?.message === "string" && errorRecord.data.message.length > 0) {
-    return errorRecord.data.message
-  }
-
-  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
-    return errorRecord.message
-  }
-
-  return fallback
-}
-
-function getApiStatus(error: unknown) {
-  if (typeof error !== "object" || !error || !("status" in error)) {
-    return null
-  }
-
-  const status = (error as { status?: unknown }).status
-  return typeof status === "number" ? status : null
 }
 
 function normalizeReadingMaterialSetup(
@@ -264,13 +226,13 @@ export default function ReadingMaterialSetupPage() {
 
         applySetup(setup)
       } catch (error) {
-        if (getApiStatus(error) === 404) {
+        if (getErrorStatus(error) === 404) {
           setSelectionError("That reading material setup no longer exists.")
           void refetch()
           return
         }
 
-        setSelectionError(getApiErrorMessage(error, "Could not load that reading material setup."))
+        setSelectionError(getErrorMessage(error, "Could not load that reading material setup."))
       }
     },
     [applySetup, draft, getReadingMaterialSetupById, refetch]
@@ -304,14 +266,14 @@ export default function ReadingMaterialSetupPage() {
       applySetup(savedSetup)
       void refetch()
     } catch (error) {
-      if (getApiStatus(error) === 404) {
+      if (getErrorStatus(error) === 404) {
         setSelectedSetupId(null)
         setSaveError("This reading material setup no longer exists.")
         void refetch()
         return
       }
 
-      setSaveError(getApiErrorMessage(error, "Could not save the reading material setup."))
+      setSaveError(getErrorMessage(error, "Could not save the reading material setup."))
     }
   }, [applySetup, createReadingMaterialSetup, draft, refetch, selectedSetupId, updateReadingMaterialSetup])
 

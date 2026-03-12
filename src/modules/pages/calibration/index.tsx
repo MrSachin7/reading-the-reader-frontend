@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, LoaderCircle, RotateCcw, ScanEye, XCircle } fr
 import { useRouter } from "next/navigation"
 
 import type { CalibrationSessionSnapshot } from "@/lib/calibration"
+import { getErrorMessage } from "@/lib/error-utils"
 import { stopGazeSocket, subscribeToCalibrationState } from "@/lib/gaze-socket"
 import { Button } from "@/components/ui/button"
 import { LiveGazeOverlay } from "@/modules/pages/gaze/components/LiveGazeOverlay"
@@ -33,25 +34,6 @@ const TARGET_BURST_MS = 360
 const GAZE_TEARDOWN_MS = 180
 
 type CalibrationPhase = "ready" | "running" | "success" | "failure"
-
-function getApiErrorMessage(error: unknown) {
-  if (typeof error !== "object" || !error) {
-    return "Calibration failed. Please try again."
-  }
-
-  const errorRecord = error as { data?: unknown; message?: string }
-  const data = errorRecord.data as { message?: string } | undefined
-
-  if (typeof data?.message === "string" && data.message.length > 0) {
-    return data.message
-  }
-
-  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
-    return errorRecord.message
-  }
-
-  return "Calibration failed. Please try again."
-}
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -320,7 +302,7 @@ export default function CalibrationPage() {
     } catch (error) {
       dispatch(setStepThreeInternalCalibrationStatus("failed"))
       setPhase("failure")
-      setErrorMessage(getApiErrorMessage(error))
+      setErrorMessage(getErrorMessage(error, "Calibration failed. Please try again."))
       setStatusMessage("Calibration failed.")
       await cancelCalibration()
     }

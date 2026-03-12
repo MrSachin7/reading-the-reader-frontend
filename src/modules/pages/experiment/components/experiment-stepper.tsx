@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
+import { getErrorMessage, getErrorStatus } from "@/lib/error-utils"
 import {
   hydrateExperimentFromSession,
   setReadingSessionSource,
@@ -29,7 +31,6 @@ import {
   useSaveParticipantMutation,
 } from "@/redux"
 import type { RootState } from "@/redux"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -163,45 +164,6 @@ const steps: ExperimentStep[] = [
   },
 ]
 
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (typeof error !== "object" || !error) {
-    return fallback
-  }
-
-  const errorRecord = error as {
-    data?: { message?: string; errors?: Record<string, string[]> }
-    message?: string
-    status?: number
-  }
-
-  const firstValidationError = errorRecord.data?.errors
-    ? Object.values(errorRecord.data.errors).flat()[0]
-    : null
-
-  if (firstValidationError) {
-    return firstValidationError
-  }
-
-  if (typeof errorRecord.data?.message === "string" && errorRecord.data.message.length > 0) {
-    return errorRecord.data.message
-  }
-
-  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
-    return errorRecord.message
-  }
-
-  return fallback
-}
-
-function getApiStatus(error: unknown) {
-  if (typeof error !== "object" || !error || !("status" in error)) {
-    return null
-  }
-
-  const status = (error as { status?: unknown }).status
-  return typeof status === "number" ? status : null
-}
-
 const participantSexOptions = [
   { value: "female", label: "Female" },
   { value: "male", label: "Male" },
@@ -239,25 +201,6 @@ type ParticipantInformationFormProps = {
   onCompletionChange?: (isComplete: boolean) => void
   onSubmitRequestChange?: (submitHandler: (() => Promise<boolean>) | null) => void
   onSubmittingChange?: (isSubmitting: boolean) => void
-}
-
-function getParticipantApiErrorMessage(error: unknown) {
-  if (typeof error !== "object" || !error) {
-    return "Failed to save participant. Please try again."
-  }
-
-  const errorRecord = error as { data?: unknown; message?: string }
-  const data = errorRecord.data as { message?: string } | undefined
-
-  if (typeof data?.message === "string" && data.message.length > 0) {
-    return data.message
-  }
-
-  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
-    return errorRecord.message
-  }
-
-  return "Failed to save participant. Please try again."
 }
 
 function ParticipantInformationForm({
@@ -346,7 +289,7 @@ function ParticipantInformationForm({
       dispatch(setStepTwoLastSyncedFingerprint(currentFingerprint))
       return true
     } catch (error) {
-      setSubmitError(getParticipantApiErrorMessage(error))
+      setSubmitError(getErrorMessage(error, "Failed to save participant. Please try again."))
       return false
     }
   }, [dispatch, form, saveParticipant, stepTwoDraft.lastSyncedFingerprint])
@@ -605,13 +548,15 @@ function SessionContentStep({ onCompletionChange }: SessionContentStepProps) {
                     dispatch(setReadingSessionResearcherQuestions(savedSetup.researcherQuestions))
                     applyReadingPresentationSettings(savedSetup)
                   } catch (error) {
-                    if (getApiStatus(error) === 404) {
+                    if (getErrorStatus(error) === 404) {
                       setSelectionError("That saved reading material setup no longer exists.")
                       void refetch()
                       return
                     }
 
-                    setSelectionError(getApiErrorMessage(error, "Could not load that reading material setup."))
+                    setSelectionError(
+                      getErrorMessage(error, "Could not load that reading material setup.")
+                    )
                   }
                 }}
                 disabled={isLoadingSelectedMaterial}
@@ -704,6 +649,55 @@ export function ExperimentStepper() {
     setStep(calibrationApplied ? Math.max(backendStep, 2) : backendStep)
   }, [dispatch, experimentSession, stepThree.externalCalibrationCompleted])
 
+  const setStepComplete = React.useCallback((stepIndex: number, isComplete: boolean) => {
+    setStepCompletion((prev) => {
+      if (prev[stepIndex] === isComplete) {
+        return prev
+      }
+
+      return { ...prev, [stepIndex]: isComplete }
+    })
+  }, [])
+
+  const handleStepSubmitterChange = React.useCallback(
+    (submitHandler: (() => Promise<boolean>) | null) => {
+      stepSubmitHandlerRef.current = submitHandler
+    },
+    []
+  )
+
+  const handleStepSubmittingChange = React.useCallback((isSubmitting: boolean) => {
+    setIsStepSubmitting((prev) => (prev === isSubmitting ? prev : isSubmitting))
+  }, [])
+
+  const handleStepZeroCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setStepComplete(0, isComplete)
+    },
+    [setStepComplete]
+  )
+
+  const handleStepOneCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setStepComplete(1, isComplete)
+    },
+    [setStepComplete]
+  )
+
+  const handleStepTwoCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setStepComplete(2, isComplete)
+    },
+    [setStepComplete]
+  )
+
+  const handleStepThreeCompletionChange = React.useCallback(
+    (isComplete: boolean) => {
+      setStepComplete(3, isComplete)
+    },
+    [setStepComplete]
+  )
+
   const handleNext = async () => {
     if (step === steps.length - 1 || !canAdvance) {
       return
@@ -734,39 +728,25 @@ export function ExperimentStepper() {
       <section className="space-y-6">
         {step === 0 ? (
           <EyetrackerSetup
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 0: isComplete }))
-            }
-            onSubmittingChange={setIsStepSubmitting}
-            onSubmitRequestChange={(submitHandler) => {
-              stepSubmitHandlerRef.current = submitHandler
-            }}
+            onCompletionChange={handleStepZeroCompletionChange}
+            onSubmittingChange={handleStepSubmittingChange}
+            onSubmitRequestChange={handleStepSubmitterChange}
           />
         ) : step === 1 ? (
           <ParticipantInformationForm
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 1: isComplete }))
-            }
-            onSubmittingChange={setIsStepSubmitting}
-            onSubmitRequestChange={(submitHandler) => {
-              stepSubmitHandlerRef.current = submitHandler
-            }}
+            onCompletionChange={handleStepOneCompletionChange}
+            onSubmittingChange={handleStepSubmittingChange}
+            onSubmitRequestChange={handleStepSubmitterChange}
           />
         ) : step === 2 ? (
           <CalibrationStep
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 2: isComplete }))
-            }
-            onSubmittingChange={setIsStepSubmitting}
-            onSubmitRequestChange={(submitHandler) => {
-              stepSubmitHandlerRef.current = submitHandler
-            }}
+            onCompletionChange={handleStepTwoCompletionChange}
+            onSubmittingChange={handleStepSubmittingChange}
+            onSubmitRequestChange={handleStepSubmitterChange}
           />
         ) : (
           <SessionContentStep
-            onCompletionChange={(isComplete) =>
-              setStepCompletion((prev) => ({ ...prev, 3: isComplete }))
-            }
+            onCompletionChange={handleStepThreeCompletionChange}
           />
         )}
 

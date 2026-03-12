@@ -5,6 +5,7 @@ import { AlertCircle, Crosshair, FileCheck2, Info, RefreshCw, Upload, X } from "
 import { useForm, useWatch } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
+import { getErrorMessage } from "@/lib/error-utils"
 import {
   setStepOneLastSyncedFingerprint,
   setStepOneLicenceFileName,
@@ -38,25 +39,6 @@ type EyetrackerSetupProps = {
   onCompletionChange?: (isComplete: boolean) => void
   onSubmitRequestChange?: (submitHandler: (() => Promise<boolean>) | null) => void
   onSubmittingChange?: (isSubmitting: boolean) => void
-}
-
-function getApiErrorMessage(error: unknown) {
-  if (typeof error !== "object" || !error) {
-    return "Failed to select eyetracker. Please try again."
-  }
-
-  const errorRecord = error as { data?: unknown; message?: string }
-  const data = errorRecord.data as { message?: string } | undefined
-
-  if (typeof data?.message === "string" && data.message.length > 0) {
-    return data.message
-  }
-
-  if (typeof errorRecord.message === "string" && errorRecord.message.length > 0) {
-    return errorRecord.message
-  }
-
-  return "Failed to select eyetracker. Please try again."
 }
 
 export function EyetrackerSetup({
@@ -149,6 +131,10 @@ export function EyetrackerSetup({
       saveLicence: stepOneDraft.saveLicence,
       licenceFile: null,
     })
+    // This reset is only for external state hydration, not for every local form edit.
+    // Including live field values here creates a render loop because local form changes
+    // dispatch back into redux and immediately trigger another reset.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, stepOneDraft.lastSyncedFingerprint, stepOneDraft.selectionConfirmed])
 
   const handleReloadEyetrackers = () => {
@@ -240,7 +226,7 @@ export function EyetrackerSetup({
       dispatch(setStepOneSelectionConfirmed(true))
       return true
     } catch (error) {
-      setSubmitError(getApiErrorMessage(error))
+      setSubmitError(getErrorMessage(error, "Failed to select eyetracker. Please try again."))
       return false
     }
   }, [

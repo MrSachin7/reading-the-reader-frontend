@@ -6,7 +6,7 @@ import { Provider } from "react-redux"
 import {
   hydrateStepThreeCalibrationState,
   type PersistedStepThreeCalibrationState,
-} from "@/redux"
+} from "@/redux/slices/experiment-slice"
 import { makeStore } from "@/redux/store"
 
 const STEP_THREE_STORAGE_KEY = "reading-the-reader:step-three-calibration"
